@@ -1,0 +1,695 @@
+package main
+
+import (
+	"encoding/json"
+	"log"
+	"net/http"
+	"strconv"
+
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
+)
+
+// Struktur data
+type Mahasiswa struct {
+	ID               int    `json:"id"`
+	NIM              string `json:"nim"`
+	Nama             string `json:"nama"`
+	TempatLahir      string `json:"tempat_lahir"`
+	TanggalLahir     string `json:"tanggal_lahir"`
+	JenisKelamin     string `json:"jenis_kelamin"`
+	NoKTP            string `json:"no_ktp"`
+	StatusPernikahan string `json:"status_pernikahan"`
+	Agama            string `json:"agama"`
+	JumlahSaudara    int    `json:"jumlah_saudara"`
+	AnakKe           int    `json:"anak_ke"`
+	SukuBangsa       string `json:"suku_bangsa"`
+	Kewarganegaraan  string `json:"kewarganegaraan"`
+	// Alamat Sekarang
+	ProvinsiSekarang  string  `json:"provinsi_sekarang"`
+	KabupatenSekarang string  `json:"kabupaten_sekarang"`
+	KecamatanSekarang string  `json:"kecamatan_sekarang"`
+	DesaSekarang      string  `json:"desa_sekarang"`
+	AlamatSekarang    string  `json:"alamat_sekarang"`
+	JarakKampus       float64 `json:"jarak_kampus"`
+	KendaraanKampus   string  `json:"kendaraan_kampus"`
+	Telp              string  `json:"telp"`
+	HP                string  `json:"hp"`
+	Email             string  `json:"email"`
+	// Alamat Daerah
+	ProvinsiDaerah  string `json:"provinsi_daerah"`
+	KabupatenDaerah string `json:"kabupaten_daerah"`
+	KecamatanDaerah string `json:"kecamatan_daerah"`
+	DesaDaerah      string `json:"desa_daerah"`
+	AlamatDaerah    string `json:"alamat_daerah"`
+	// Biodata Ayah
+	NamaAyah        string `json:"nama_ayah"`
+	AgamaAyah       string `json:"agama_ayah"`
+	PendidikanAyah  string `json:"pendidikan_ayah"`
+	PekerjaanAyah   string `json:"pekerjaan_ayah"`
+	PenghasilanAyah string `json:"penghasilan_ayah"`
+	StatusAyah      string `json:"status_ayah"`
+	AlamatAyah      string `json:"alamat_ayah"`
+	TeleponAyah     string `json:"telepon_ayah"`
+	HPAyah          string `json:"hp_ayah"`
+	// Biodata Ibu
+	NamaIbu        string `json:"nama_ibu"`
+	AgamaIbu       string `json:"agama_ibu"`
+	PendidikanIbu  string `json:"pendidikan_ibu"`
+	PekerjaanIbu   string `json:"pekerjaan_ibu"`
+	PenghasilanIbu string `json:"penghasilan_ibu"`
+	StatusIbu      string `json:"status_ibu"`
+	AlamatIbu      string `json:"alamat_ibu"`
+	TeleponIbu     string `json:"telepon_ibu"`
+	HPIbu          string `json:"hp_ibu"`
+	// Kontak Utama
+	KontakUtama string `json:"kontak_utama"`
+	// Pendidikan
+	SDAsal  string `json:"sd_asal"`
+	SMPAsal string `json:"smp_asal"`
+	SMAAsal string `json:"sma_asal"`
+	// Sumber Biaya
+	SumberBiaya string `json:"sumber_biaya"`
+	// Data Akademik untuk SAW
+	IPK         float64 `json:"ipk"`
+	Kehadiran   float64 `json:"kehadiran"`
+	SKSLulus    int     `json:"sks_lulus"`
+	MKMengulang int     `json:"mk_mengulang"`
+	LamaStudi   int     `json:"lama_studi"`
+	// Field tambahan untuk frontend
+	Jurusan       string  `json:"jurusan"`
+	Angkatan      int     `json:"angkatan"`
+	Semester      int     `json:"semester"`
+	Status        string  `json:"status"`
+	Prestasi      string  `json:"prestasi"`
+	Beasiswa      string  `json:"beasiswa"`
+	BeasiswaLuar  string  `json:"beasiswa_luar"`
+	KIPK          float64 `json:"kipk"`
+	Keterangan    string  `json:"keterangan"`
+	SKSBelumLulus int     `json:"sks_belum_lulus"`
+}
+
+type Kriteria struct {
+	Nama  string `json:"nama"`
+	Jenis string `json:"jenis"` // "benefit" or "cost"
+}
+
+type Bobot struct {
+	Nama  string  `json:"nama"`
+	Bobot float64 `json:"bobot"`
+}
+
+type HasilSAW struct {
+	Mahasiswa Mahasiswa `json:"mahasiswa"`
+	Nilai     float64   `json:"nilai"`
+	Kategori  string    `json:"kategori"`
+}
+
+// Data dummy
+var mahasiswaList = []Mahasiswa{
+	{
+		ID:                1,
+		NIM:               "105841107223",
+		Nama:              "Muhammad Aksan",
+		TempatLahir:       "Makassar",
+		TanggalLahir:      "2005-08-19",
+		JenisKelamin:      "L",
+		NoKTP:             "7371131908050004",
+		StatusPernikahan:  "BELUM MENIKAH",
+		Agama:             "ISLAM",
+		JumlahSaudara:     4,
+		AnakKe:            3,
+		SukuBangsa:        "Makassar",
+		Kewarganegaraan:   "WNI",
+		ProvinsiSekarang:  "SULAWESI SELATAN",
+		KabupatenSekarang: "MAKASSAR",
+		KecamatanSekarang: "RAPPOCINI",
+		DesaSekarang:      "KARUNRUNG",
+		AlamatSekarang:    "Jl KARUNRUNG RAYA 5",
+		JarakKampus:       1.5,
+		KendaraanKampus:   "Motor",
+		Telp:              "0895406210356",
+		HP:                "0895344520094",
+		Email:             "muhammadaksan263@gmail.com",
+		ProvinsiDaerah:    "SULAWESI SELATAN",
+		KabupatenDaerah:   "MAKASSAR",
+		KecamatanDaerah:   "RAPPOCINI",
+		DesaDaerah:        "KARUNRUNG",
+		AlamatDaerah:      "JL KARUNRUNG RAYA 5",
+		NamaAyah:          "Jakbar Nur Tinggi",
+		AgamaAyah:         "ISLAM",
+		PendidikanAyah:    "TAMAT SMP",
+		PekerjaanAyah:     "BURUH HARIAN",
+		PenghasilanAyah:   "500.001 - 1.000.000",
+		StatusAyah:        "HIDUP",
+		AlamatAyah:        "JL KARUNRUNG RAYA 5",
+		TeleponAyah:       "081354799934",
+		HPAyah:            "081354799934",
+		NamaIbu:           "Tunia Dg Lebang",
+		AgamaIbu:          "ISLAM",
+		PendidikanIbu:     "TAMAT SMP",
+		PekerjaanIbu:      "TIDAK BEKERJA",
+		PenghasilanIbu:    "< 500.000",
+		StatusIbu:         "HIDUP",
+		AlamatIbu:         "JL KARUNRUNG RAYA 5",
+		TeleponIbu:        "082344453098",
+		HPIbu:             "082344453098",
+		KontakUtama:       "IBU",
+		SDAsal:            "SD INPRES KARUNRUNG",
+		SMPAsal:           "SMPN 21 MAKASSAR",
+		SMAAsal:           "SMAN 9 MAKASSAR",
+		SumberBiaya:       "Sendiri 01",
+		IPK:               3.7,
+		Kehadiran:         95,
+		SKSLulus:          140,
+		MKMengulang:       0,
+		LamaStudi:         7,
+		Jurusan:           "Teknik Informatika",
+		Angkatan:          2022,
+		Semester:          7,
+		Status:            "Aktif",
+		Prestasi:          "Sertifikat Lomba Programing",
+		Beasiswa:          "Beasiswa Penuh",
+		BeasiswaLuar:      "Tidak Ada",
+		KIPK:              3.5,
+		Keterangan:        "",
+		SKSBelumLulus:     4,
+	},
+	{
+		ID:                2,
+		NIM:               "105841107224",
+		Nama:              "Andi Dummy",
+		TempatLahir:       "Makassar",
+		TanggalLahir:      "2004-05-10",
+		JenisKelamin:      "L",
+		NoKTP:             "7371131005040001",
+		StatusPernikahan:  "BELUM MENIKAH",
+		Agama:             "ISLAM",
+		JumlahSaudara:     3,
+		AnakKe:            2,
+		SukuBangsa:        "Makassar",
+		Kewarganegaraan:   "WNI",
+		ProvinsiSekarang:  "SULAWESI SELATAN",
+		KabupatenSekarang: "MAKASSAR",
+		KecamatanSekarang: "RAPPOCINI",
+		DesaSekarang:      "KARUNRUNG",
+		AlamatSekarang:    "Jl Dummy 1",
+		JarakKampus:       2.0,
+		KendaraanKampus:   "Motor",
+		Telp:              "081234567890",
+		HP:                "081234567891",
+		Email:             "andi@example.com",
+		ProvinsiDaerah:    "SULAWESI SELATAN",
+		KabupatenDaerah:   "MAKASSAR",
+		KecamatanDaerah:   "RAPPOCINI",
+		DesaDaerah:        "KARUNRUNG",
+		AlamatDaerah:      "Jl Dummy 1",
+		NamaAyah:          "Ayah Andi",
+		AgamaAyah:         "ISLAM",
+		PendidikanAyah:    "SMA",
+		PekerjaanAyah:     "KARYAWAN",
+		PenghasilanAyah:   "1.000.001 - 2.000.000",
+		StatusAyah:        "HIDUP",
+		AlamatAyah:        "Jl Dummy 1",
+		TeleponAyah:       "081234567892",
+		HPAyah:            "081234567892",
+		NamaIbu:           "Ibu Andi",
+		AgamaIbu:          "ISLAM",
+		PendidikanIbu:     "SMA",
+		PekerjaanIbu:      "GURU",
+		PenghasilanIbu:    "500.001 - 1.000.000",
+		StatusIbu:         "HIDUP",
+		AlamatIbu:         "Jl Dummy 1",
+		TeleponIbu:        "081234567893",
+		HPIbu:             "081234567893",
+		KontakUtama:       "AYAH",
+		SDAsal:            "SD Dummy",
+		SMPAsal:           "SMP Dummy",
+		SMAAsal:           "SMA Dummy",
+		SumberBiaya:       "Orang Tua",
+		IPK:               2.8,
+		Kehadiran:         80,
+		SKSLulus:          120,
+		MKMengulang:       2,
+		LamaStudi:         8,
+		Jurusan:           "Teknik Informatika",
+		Angkatan:          2022,
+		Semester:          8,
+		Status:            "Aktif",
+		Prestasi:          "Sertifikat Workshop",
+		Beasiswa:          "Beasiswa Partial",
+		BeasiswaLuar:      "Tidak Ada",
+		KIPK:              2.5, Keterangan: "",
+		SKSBelumLulus: 24},
+	{
+		ID:                3,
+		NIM:               "105841107225",
+		Nama:              "Cici Dummy",
+		TempatLahir:       "Makassar",
+		TanggalLahir:      "2005-03-15",
+		JenisKelamin:      "P",
+		NoKTP:             "7371131503050002",
+		StatusPernikahan:  "BELUM MENIKAH",
+		Agama:             "ISLAM",
+		JumlahSaudara:     2,
+		AnakKe:            1,
+		SukuBangsa:        "Makassar",
+		Kewarganegaraan:   "WNI",
+		ProvinsiSekarang:  "SULAWESI SELATAN",
+		KabupatenSekarang: "MAKASSAR",
+		KecamatanSekarang: "RAPPOCINI",
+		DesaSekarang:      "KARUNRUNG",
+		AlamatSekarang:    "Jl Dummy 2",
+		JarakKampus:       1.0,
+		KendaraanKampus:   "Sepeda",
+		Telp:              "081234567894",
+		HP:                "081234567895",
+		Email:             "cici@example.com",
+		ProvinsiDaerah:    "SULAWESI SELATAN",
+		KabupatenDaerah:   "MAKASSAR",
+		KecamatanDaerah:   "RAPPOCINI",
+		DesaDaerah:        "KARUNRUNG",
+		AlamatDaerah:      "Jl Dummy 2",
+		NamaAyah:          "Ayah Cici",
+		AgamaAyah:         "ISLAM",
+		PendidikanAyah:    "S1",
+		PekerjaanAyah:     "DOSEN",
+		PenghasilanAyah:   "> 5.000.000",
+		StatusAyah:        "HIDUP",
+		AlamatAyah:        "Jl Dummy 2",
+		TeleponAyah:       "081234567896",
+		HPAyah:            "081234567896",
+		NamaIbu:           "Ibu Cici",
+		AgamaIbu:          "ISLAM",
+		PendidikanIbu:     "S1",
+		PekerjaanIbu:      "DOSEN",
+		PenghasilanIbu:    "> 5.000.000",
+		StatusIbu:         "HIDUP",
+		AlamatIbu:         "Jl Dummy 2",
+		TeleponIbu:        "081234567897",
+		HPIbu:             "081234567897",
+		KontakUtama:       "IBU",
+		SDAsal:            "SD Dummy 2",
+		SMPAsal:           "SMP Dummy 2",
+		SMAAsal:           "SMA Dummy 2",
+		SumberBiaya:       "Beasiswa",
+		IPK:               3.2,
+		Kehadiran:         90,
+		SKSLulus:          130,
+		MKMengulang:       1,
+		LamaStudi:         7,
+		Jurusan:           "Teknik Informatika",
+		Angkatan:          2022,
+		Semester:          7,
+		Status:            "Aktif",
+		Prestasi:          "Mahasiswa Berprestasi",
+		Beasiswa:          "Beasiswa Penuh",
+		BeasiswaLuar:      "Beasiswa Asia",
+		KIPK:              3.8,
+		Keterangan:        "",
+		SKSBelumLulus:     14,
+	},
+	{
+		ID:                4,
+		NIM:               "105841107225",
+		Nama:              "Rini Alumni",
+		TempatLahir:       "Bandung",
+		TanggalLahir:      "2003-03-15",
+		JenisKelamin:      "P",
+		NoKTP:             "7371131003030001",
+		StatusPernikahan:  "BELUM MENIKAH",
+		Agama:             "ISLAM",
+		JumlahSaudara:     2,
+		AnakKe:            1,
+		SukuBangsa:        "Sunda",
+		Kewarganegaraan:   "WNI",
+		ProvinsiSekarang:  "SULAWESI SELATAN",
+		KabupatenSekarang: "MAKASSAR",
+		KecamatanSekarang: "MAPPANRE",
+		DesaSekarang:      "BAROMBONG",
+		AlamatSekarang:    "Jl Ahmad Yani 10",
+		JarakKampus:       2.0,
+		KendaraanKampus:   "Motor",
+		Telp:              "0895123456789",
+		HP:                "0895223456789",
+		Email:             "rini.alumni@gmail.com",
+		ProvinsiDaerah:    "JAWA BARAT",
+		KabupatenDaerah:   "BANDUNG",
+		KecamatanDaerah:   "CIDADAP",
+		DesaDaerah:        "HEGARMANAH",
+		AlamatDaerah:      "Jl Merdeka 20",
+		NamaAyah:          "Bambang Sutrisno",
+		AgamaAyah:         "ISLAM",
+		PendidikanAyah:    "S1",
+		PekerjaanAyah:     "PEGAWAI NEGERI",
+		PenghasilanAyah:   "2.000.001 - 3.000.000",
+		StatusAyah:        "HIDUP",
+		AlamatAyah:        "Jl Merdeka 20",
+		TeleponAyah:       "0274123456",
+		HPAyah:            "081234123456",
+		NamaIbu:           "Siti Nurhaliza",
+		AgamaIbu:          "ISLAM",
+		PendidikanIbu:     "S1",
+		PekerjaanIbu:      "GURU",
+		PenghasilanIbu:    "1.500.001 - 2.000.000",
+		StatusIbu:         "HIDUP",
+		AlamatIbu:         "Jl Merdeka 20",
+		TeleponIbu:        "0274234567",
+		HPIbu:             "081234234567",
+		KontakUtama:       "IBU",
+		SDAsal:            "SD Negeri 5 Bandung",
+		SMPAsal:           "SMP Negeri 8 Bandung",
+		SMAAsal:           "SMA Negeri 3 Bandung",
+		SumberBiaya:       "Sendiri",
+		IPK:               3.6,
+		Kehadiran:         98,
+		SKSLulus:          144,
+		MKMengulang:       0,
+		LamaStudi:         8,
+		Jurusan:           "Teknik Informatika",
+		Angkatan:          2021,
+		Semester:          8,
+		Status:            "Alumni",
+		Prestasi:          "Lulusan Terbaik",
+		Beasiswa:          "Beasiswa Parsial",
+		BeasiswaLuar:      "Tidak Ada",
+		KIPK:              3.6,
+		Keterangan:        "Lulus Tahun 2024",
+		SKSBelumLulus:     0,
+	},
+	{
+		ID:                5,
+		NIM:               "105841107226",
+		Nama:              "Budi Cuti",
+		TempatLahir:       "Surabaya",
+		TanggalLahir:      "2004-08-20",
+		JenisKelamin:      "L",
+		NoKTP:             "7371131004080001",
+		StatusPernikahan:  "BELUM MENIKAH",
+		Agama:             "ISLAM",
+		JumlahSaudara:     3,
+		AnakKe:            2,
+		SukuBangsa:        "Jawa",
+		Kewarganegaraan:   "WNI",
+		ProvinsiSekarang:  "SULAWESI SELATAN",
+		KabupatenSekarang: "MAKASSAR",
+		KecamatanSekarang: "UJUNG PANDANG",
+		DesaSekarang:      "TIDUNG",
+		AlamatSekarang:    "Jl Slamet Riadi 25",
+		JarakKampus:       3.0,
+		KendaraanKampus:   "Angkot",
+		Telp:              "0895456789012",
+		HP:                "0895556789012",
+		Email:             "budi.cuti@gmail.com",
+		ProvinsiDaerah:    "JAWA TIMUR",
+		KabupatenDaerah:   "SURABAYA",
+		KecamatanDaerah:   "GUBENG",
+		DesaDaerah:        "KALIGTINJAL",
+		AlamatDaerah:      "Jl Mayjen Sungkono 50",
+		NamaAyah:          "Suharno",
+		AgamaAyah:         "ISLAM",
+		PendidikanAyah:    "SMA",
+		PekerjaanAyah:     "WIRASWASTA",
+		PenghasilanAyah:   "2.000.001 - 3.000.000",
+		StatusAyah:        "HIDUP",
+		AlamatAyah:        "Jl Mayjen Sungkono 50",
+		TeleponAyah:       "0315234567",
+		HPAyah:            "081234567890",
+		NamaIbu:           "Warni",
+		AgamaIbu:          "ISLAM",
+		PendidikanIbu:     "SMA",
+		PekerjaanIbu:      "IBU RUMAH TANGGA",
+		PenghasilanIbu:    "< 500.000",
+		StatusIbu:         "HIDUP",
+		AlamatIbu:         "Jl Mayjen Sungkono 50",
+		TeleponIbu:        "0315345678",
+		HPIbu:             "081234567891",
+		KontakUtama:       "AYAH",
+		SDAsal:            "SD Negeri 10 Surabaya",
+		SMPAsal:           "SMP Negeri 12 Surabaya",
+		SMAAsal:           "SMA Negeri 5 Surabaya",
+		SumberBiaya:       "Sendiri",
+		IPK:               2.8,
+		Kehadiran:         70,
+		SKSLulus:          90,
+		MKMengulang:       3,
+		LamaStudi:         5,
+		Jurusan:           "Teknik Informatika",
+		Angkatan:          2022,
+		Semester:          5,
+		Status:            "Cuti",
+		Prestasi:          "Tidak Ada",
+		Beasiswa:          "Tidak Ada",
+		BeasiswaLuar:      "Tidak Ada",
+		KIPK:              2.8,
+		Keterangan:        "Cuti Akademik Semester 5-6",
+		SKSBelumLulus:     24,
+	},
+}
+
+var kriteriaList = []Kriteria{
+	{"IPK", "benefit"},
+	{"Kehadiran", "benefit"},
+	{"SKS Lulus", "benefit"},
+	{"MK Mengulang", "cost"},
+	{"Lama Studi", "cost"},
+}
+
+var bobotList = []Bobot{
+	{"IPK", 0.30},
+	{"Kehadiran", 0.20},
+	{"SKS Lulus", 0.20},
+	{"MK Mengulang", 0.15},
+	{"Lama Studi", 0.15},
+}
+
+// Endpoint handlers
+func getMahasiswa(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(mahasiswaList)
+}
+
+func addMahasiswa(w http.ResponseWriter, r *http.Request) {
+	var m Mahasiswa
+	json.NewDecoder(r.Body).Decode(&m)
+	m.ID = len(mahasiswaList) + 1
+	mahasiswaList = append(mahasiswaList, m)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(m)
+}
+
+func getKriteria(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(kriteriaList)
+}
+
+func getBobot(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(bobotList)
+}
+
+func prosesSAW(w http.ResponseWriter, r *http.Request) {
+	// Normalisasi SAW
+	var hasil []HasilSAW
+
+	if len(mahasiswaList) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode([]HasilSAW{})
+		return
+	}
+
+	for _, m := range mahasiswaList {
+		rIPK := m.IPK / 4.0 // max IPK 4.0
+		rKehadiran := m.Kehadiran / 100.0
+		rSKS := float64(m.SKSLulus) / 144.0 // max SKS 144
+		rMK := 1.0                          // default value jika 0
+		if m.MKMengulang > 0 {
+			rMK = 1.0 / float64(m.MKMengulang) // inverse score untuk cost criterion
+		}
+		rLama := 7.0 / float64(m.LamaStudi) // min lama 7
+
+		nilai := rIPK*0.30 + rKehadiran*0.20 + rSKS*0.20 + rMK*0.15 + rLama*0.15
+
+		kategori := "Berisiko"
+		if nilai >= 0.80 {
+			kategori = "Berprestasi"
+		} else if nilai >= 0.60 {
+			kategori = "Normal"
+		}
+
+		hasil = append(hasil, HasilSAW{m, nilai, kategori})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(hasil)
+}
+
+func getMahasiswaByNIM(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	nim := vars["nim"]
+
+	for _, m := range mahasiswaList {
+		if m.NIM == nim {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(m)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	json.NewEncoder(w).Encode(map[string]string{"error": "Mahasiswa tidak ditemukan"})
+}
+
+func getMahasiswaAktif(w http.ResponseWriter, r *http.Request) {
+	var result []Mahasiswa
+	for _, m := range mahasiswaList {
+		if m.Status == "Aktif" {
+			result = append(result, m)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func getMahasiswaTidakAktif(w http.ResponseWriter, r *http.Request) {
+	var result []Mahasiswa
+	for _, m := range mahasiswaList {
+		if m.Status != "Aktif" && m.Status != "Alumni" {
+			result = append(result, m)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func getMahasiswaAlumni(w http.ResponseWriter, r *http.Request) {
+	var result []Mahasiswa
+	for _, m := range mahasiswaList {
+		if m.Status == "Alumni" {
+			result = append(result, m)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func getMahasiswaByProdi(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	prodi := vars["prodi"]
+
+	var result []Mahasiswa
+	for _, m := range mahasiswaList {
+		if m.Jurusan == prodi {
+			result = append(result, m)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func getMahasiswaByAngkatan(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	angkatanStr := vars["angkatan"]
+
+	angkatan, err := strconv.Atoi(angkatanStr)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid angkatan"})
+		return
+	}
+
+	var result []Mahasiswa
+	for _, m := range mahasiswaList {
+		if m.Angkatan == angkatan {
+			result = append(result, m)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func getMahasiswaBerprestasi(w http.ResponseWriter, r *http.Request) {
+	var result []Mahasiswa
+	for _, m := range mahasiswaList {
+		if m.Prestasi != "" {
+			result = append(result, m)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func getMahasiswaBeasiswa(w http.ResponseWriter, r *http.Request) {
+	var result []Mahasiswa
+	for _, m := range mahasiswaList {
+		if m.Beasiswa != "" && m.Beasiswa != "Tidak Ada" {
+			result = append(result, m)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func getMahasiswaStats(w http.ResponseWriter, r *http.Request) {
+	type Stats struct {
+		TotalMahasiswa      int `json:"total_mahasiswa"`
+		MahasiswaAktif      int `json:"mahasiswa_aktif"`
+		MahasiswaTidakAktif int `json:"mahasiswa_tidak_aktif"`
+		Berprestasi         int `json:"berprestasi"`
+		Alumni              int `json:"alumni"`
+	}
+
+	stats := Stats{}
+	for _, m := range mahasiswaList {
+		stats.TotalMahasiswa++
+		if m.Status == "Aktif" {
+			stats.MahasiswaAktif++
+		} else if m.Status == "Alumni" {
+			stats.Alumni++
+		} else {
+			stats.MahasiswaTidakAktif++
+		}
+		if m.Prestasi != "" {
+			stats.Berprestasi++
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+func main() {
+	r := mux.NewRouter()
+
+	r.HandleFunc("/mahasiswa", getMahasiswa).Methods("GET")
+	r.HandleFunc("/mahasiswa", addMahasiswa).Methods("POST")
+	// Specific routes must come before {nim} parameterized route
+	r.HandleFunc("/mahasiswa/aktif", getMahasiswaAktif).Methods("GET")
+	r.HandleFunc("/mahasiswa/tidak-aktif", getMahasiswaTidakAktif).Methods("GET")
+	r.HandleFunc("/mahasiswa/alumni", getMahasiswaAlumni).Methods("GET")
+	r.HandleFunc("/mahasiswa/berprestasi", getMahasiswaBerprestasi).Methods("GET")
+	r.HandleFunc("/mahasiswa/beasiswa", getMahasiswaBeasiswa).Methods("GET")
+	r.HandleFunc("/mahasiswa/prodi/{prodi}", getMahasiswaByProdi).Methods("GET")
+	r.HandleFunc("/mahasiswa/angkatan/{angkatan}", getMahasiswaByAngkatan).Methods("GET")
+	// Generic NIM route must come last
+	r.HandleFunc("/mahasiswa/{nim}", getMahasiswaByNIM).Methods("GET")
+	r.HandleFunc("/stats", getMahasiswaStats).Methods("GET")
+	r.HandleFunc("/kriteria", getKriteria).Methods("GET")
+	r.HandleFunc("/bobot", getBobot).Methods("GET")
+	r.HandleFunc("/proses", prosesSAW).Methods("POST")
+
+	// Enable CORS
+	corsObj := handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}),
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}),
+	)
+
+	log.Println("Server running on :8080")
+	log.Fatal(http.ListenAndServe(":8080", corsObj(r)))
+}
