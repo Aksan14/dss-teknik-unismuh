@@ -1,524 +1,377 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import MainLayout from '@/components/MainLayout';
-import {
-  ArrowLeftIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-  UserIcon,
-  AcademicCapIcon,
-  DocumentTextIcon,
-  CreditCardIcon,
-  UserGroupIcon,
-  HomeIcon,
-  ClipboardIcon,
-  StarIcon,
-} from '@heroicons/react/24/outline';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { UserIcon, AcademicCapIcon, ChevronLeftIcon, ExclamationTriangleIcon, PhoneIcon, EnvelopeIcon, IdentificationIcon, BookOpenIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
-interface Mahasiswa {
-  id: number;
-  nim: string;
-  nama: string;
-  tempat_lahir: string;
-  tanggal_lahir: string;
-  jenis_kelamin: string;
-  no_ktp: string;
-  status_pernikahan: string;
-  agama: string;
-  jumlah_saudara: number;
-  anak_ke: number;
-  suku_bangsa: string;
-  kewarganegaraan: string;
-  provinsi_sekarang: string;
-  kabupaten_sekarang: string;
-  kecamatan_sekarang: string;
-  desa_sekarang: string;
-  alamat_sekarang: string;
-  jarak_kampus: number;
-  kendaraan_kampus: string;
-  telp: string;
-  hp: string;
-  email: string;
-  provinsi_daerah: string;
-  kabupaten_daerah: string;
-  kecamatan_daerah: string;
-  desa_daerah: string;
-  alamat_daerah: string;
-  nama_ayah: string;
-  agama_ayah: string;
-  pendidikan_ayah: string;
-  pekerjaan_ayah: string;
-  penghasilan_ayah: string;
-  status_ayah: string;
-  alamat_ayah: string;
-  telepon_ayah: string;
-  hp_ayah: string;
-  nama_ibu: string;
-  agama_ibu: string;
-  pendidikan_ibu: string;
-  pekerjaan_ibu: string;
-  penghasilan_ibu: string;
-  status_ibu: string;
-  alamat_ibu: string;
-  telepon_ibu: string;
-  hp_ibu: string;
-  kontak_utama: string;
-  sd_asal: string;
-  smp_asal: string;
-  sma_asal: string;
-  sumber_biaya: string;
-  ipk: number;
-  kehadiran: number;
-  sks_lulus: number;
-  mk_mengulang: number;
-  lama_studi: number;
-  jurusan: string;
-  angkatan: number;
-  semester: number;
-  status: string;
-  prestasi: string;
-  beasiswa: string;
-  beasiswa_luar: string;
-  kipk: number;
-  keterangan: string;
-  sks_belum_lulus: number;
+interface OrangTua {
+  nim: string; nik: string; nama: string; alamat: string; hp: string; email: string;
+  pendidikan: string; pekerjaan: string; instansi: string; jabatan: string; penghasilan: string; status: string;
+}
+interface WaliData {
+  nim: string; nama: string; alamat: string; hp: string; email: string;
+  pendidikan: string; pekerjaan: string; instansi: string; jabatan: string; penghasilan: string;
+}
+interface KHS {
+  tahun_akademik: string; total_sks_lulus: number; ips: number; ipk: number; status_kelulusan: string;
+  jumlah_matakuliah: number; sks_diambil: number; sks_lulus: number; matakuliah_lulus: number;
+  jumlah_mk_diulang: number; sks_mk_diulang: number;
+}
+interface DosenPA {
+  nidn: string; nama: string; gelar_depan: string; gelar_belakang: string; email: string; prodi_id: string;
+}
+interface ProdiData {
+  id: string; kode_fakultas: string; kode_prodi: string; nama_prodi: string; nama_prodi_eng: string;
+  status_prodi: string; email_prodi: string; kode_nim: string; gelar_pendek: string; gelar_panjang: string; gelar_eng: string;
+}
+interface MahasiswaDetail {
+  nim: string; kode_prodi: string; angkatan: number; nama: string; jenis_kelamin: string;
+  tempat_lahir: string; tanggal_lahir: string; nik: string; hp: string; email: string;
+  semester_awal: string; tahun_akademik_lulus: string; tanggal_lulus: string; lulus: boolean;
+  no_seri_ijazah: string; masa_studi: string; status: string; kategori: string;
+  ipk: number; sks_total: number; sks_diambil: number; sks_lulus: number;
+  matakuliah_lulus: number; jumlah_mk_diulang: number; sks_mk_diulang: number;
+  ayah: OrangTua | null; ibu: OrangTua | null; wali: WaliData | null;
+  khs: KHS[]; dosen_penasehat: DosenPA | null; prodi: ProdiData | null;
 }
 
-export default function DetailMahasiswa() {
+export default function DetailMahasiswaPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-900"></div></div>}>
+      <DetailMahasiswa />
+    </Suspense>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string | number | undefined | null }) {
+  const display = value !== null && value !== undefined && value !== '' ? String(value) : '-';
+  return (
+    <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+      <span className="text-sm text-gray-500">{label}</span>
+      <span className="text-sm font-medium text-gray-900 text-right max-w-[60%]">{display}</span>
+    </div>
+  );
+}
+
+function SectionCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-xl shadow-md border border-blue-100 p-6">
+      <div className="flex items-center space-x-2 mb-4">
+        {icon}
+        <h3 className="text-lg font-bold text-blue-900">{title}</h3>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function OrangTuaCard({ title, data }: { title: string; data: OrangTua | null }) {
+  if (!data || !data.nama) return null;
+  return (
+    <div className="bg-gray-50 rounded-lg p-4">
+      <h4 className="font-semibold text-gray-800 mb-3">{title}</h4>
+      <InfoRow label="Nama" value={data.nama} />
+      <InfoRow label="NIK" value={data.nik} />
+      <InfoRow label="HP" value={data.hp} />
+      <InfoRow label="Email" value={data.email} />
+      <InfoRow label="Alamat" value={data.alamat} />
+      <InfoRow label="Pendidikan" value={data.pendidikan} />
+      <InfoRow label="Pekerjaan" value={data.pekerjaan} />
+      <InfoRow label="Instansi" value={data.instansi} />
+      <InfoRow label="Jabatan" value={data.jabatan} />
+      <InfoRow label="Penghasilan" value={data.penghasilan} />
+      {data.status && <InfoRow label="Status" value={data.status} />}
+    </div>
+  );
+}
+
+function DetailMahasiswa() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const nim = searchParams.get('nim');
-  const [mahasiswa, setMahasiswa] = useState<Mahasiswa | null>(null);
+  const [data, setData] = useState<MahasiswaDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('biodata');
+  const [activeTab, setActiveTab] = useState<'akademik' | 'pribadi' | 'keluarga' | 'khs'>('akademik');
 
-  useEffect(() => {
-    if (!nim) {
-      setError('NIM tidak ditemukan');
+  const fetchData = useCallback(async () => {
+    if (!nim) { setError('NIM tidak ditemukan di URL'); setLoading(false); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`http://localhost:8080/api/v1/mahasiswa/${nim}/detail`);
+      if (!res.ok) throw new Error('Data tidak ditemukan');
+      const result = await res.json();
+      setData(result);
+    } catch {
+      setError('Gagal memuat data mahasiswa. Pastikan NIM benar.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const fetchMahasiswa = async () => {
-      try {
-        const response = await fetch(`http://localhost:8080/mahasiswa/${nim}`);
-        if (!response.ok) {
-          throw new Error('Mahasiswa tidak ditemukan');
-        }
-        const data = await response.json();
-        setMahasiswa(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error fetching data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMahasiswa();
   }, [nim]);
 
-  if (loading) {
-    return (
-      <MainLayout>
-        <div className="flex justify-center items-center min-h-screen">
-          <p className="text-lg text-gray-600">Memuat data...</p>
-        </div>
-      </MainLayout>
-    );
-  }
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  if (error || !mahasiswa) {
-    return (
-      <MainLayout>
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-800 mb-6"
-          >
-            <ArrowLeftIcon className="w-5 h-5" />
-            Kembali
-          </button>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-            <p className="text-red-700">{error || 'Data tidak ditemukan'}</p>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-900"></div></div>;
+  if (error || !data) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="bg-red-50 border border-red-200 rounded-xl p-8 max-w-md text-center">
+        <ExclamationTriangleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
+        <p className="text-red-700 font-medium mb-4">{error || 'Data tidak ditemukan'}</p>
+        <Link href="/" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">Kembali</Link>
+      </div>
+    </div>
+  );
 
-  const getStatusColor = (status: string) => {
-    const statusMap: Record<string, string> = {
-      'Aktif': 'bg-green-100 text-green-800',
-      'Alumni': 'bg-blue-100 text-blue-800',
-      'Cuti': 'bg-yellow-100 text-yellow-800',
-      'Keluar': 'bg-red-100 text-red-800',
-    };
-    return statusMap[status] || 'bg-gray-100 text-gray-800';
-  };
+  const m = data;
+  const progressSKS = m.sks_total > 0 ? Math.min((m.sks_lulus / m.sks_total) * 100, 100) : 0;
+  const rasioUlang = m.sks_diambil > 0 ? ((m.sks_mk_diulang / m.sks_diambil) * 100) : 0;
+  const dosenNama = m.dosen_penasehat ? `${m.dosen_penasehat.gelar_depan || ''} ${m.dosen_penasehat.nama} ${m.dosen_penasehat.gelar_belakang || ''}`.trim() : '-';
 
-  const analysisQuestions = [
-    {
-      title: 'Status Akademik',
-      icon: <ClipboardIcon className="w-5 h-5" />,
-      questions: [
-        { q: 'Apakah mahasiswa masih aktif?', a: mahasiswa.status === 'Aktif' ? 'Ya' : 'Tidak' },
-        { q: 'Semester Mahasiswa?', a: `${mahasiswa.semester}` },
-        { q: 'Total SKS Lulus?', a: `${mahasiswa.sks_lulus} SKS` },
-        { q: 'SKS Belum Lulus?', a: `${mahasiswa.sks_belum_lulus} SKS` },
-        { q: 'Matakuliah Mengulang?', a: `${mahasiswa.mk_mengulang} MK` },
-        { q: 'Lama Studi?', a: `${mahasiswa.lama_studi} Semester` },
-      ]
-    },
-    {
-      title: 'Prestasi & Beasiswa',
-      icon: <StarIcon className="w-5 h-5" />,
-      questions: [
-        { q: 'Apakah mahasiswa berprestasi?', a: mahasiswa.prestasi && mahasiswa.prestasi !== 'Tidak Ada' ? 'Ya' : 'Tidak' },
-        { q: 'Prestasi Mahasiswa?', a: mahasiswa.prestasi || '-' },
-        { q: 'Apakah menerima beasiswa?', a: mahasiswa.beasiswa && mahasiswa.beasiswa !== 'Tidak Ada' ? 'Ya' : 'Tidak' },
-        { q: 'Jenis Beasiswa Dalam?', a: mahasiswa.beasiswa || '-' },
-        { q: 'Beasiswa Luar Negeri?', a: mahasiswa.beasiswa_luar || '-' },
-        { q: 'KIPK (GPA)?', a: `${mahasiswa.kipk}` },
-      ]
-    },
-    {
-      title: 'Informasi Keuangan',
-      icon: <CreditCardIcon className="w-5 h-5" />,
-      questions: [
-        { q: 'Sumber Biaya?', a: mahasiswa.sumber_biaya || '-' },
-        { q: 'Penghasilan Orang Tua (Ayah)?', a: mahasiswa.penghasilan_ayah || '-' },
-        { q: 'Penghasilan Orang Tua (Ibu)?', a: mahasiswa.penghasilan_ibu || '-' },
-        { q: 'Jumlah Saudara?', a: `${mahasiswa.jumlah_saudara}` },
-        { q: 'Anak ke?', a: `${mahasiswa.anak_ke}` },
-      ]
-    },
-    {
-      title: 'Informasi Tempat Tinggal',
-      icon: <HomeIcon className="w-5 h-5" />,
-      questions: [
-        { q: 'Alamat Sekarang?', a: mahasiswa.alamat_sekarang || '-' },
-        { q: 'Kota Sekarang?', a: `${mahasiswa.kabupaten_sekarang}, ${mahasiswa.provinsi_sekarang}` },
-        { q: 'Jarak ke Kampus?', a: `${mahasiswa.jarak_kampus} km` },
-        { q: 'Kendaraan ke Kampus?', a: mahasiswa.kendaraan_kampus || '-' },
-        { q: 'Alamat Asal?', a: mahasiswa.alamat_daerah || '-' },
-        { q: 'Kota Asal?', a: `${mahasiswa.kabupaten_daerah}, ${mahasiswa.provinsi_daerah}` },
-      ]
-    },
-    {
-      title: 'Informasi Keluarga',
-      icon: <UserGroupIcon className="w-5 h-5" />,
-      questions: [
-        { q: 'Nama Ayah?', a: mahasiswa.nama_ayah || '-' },
-        { q: 'Pekerjaan Ayah?', a: mahasiswa.pekerjaan_ayah || '-' },
-        { q: 'Pendidikan Ayah?', a: mahasiswa.pendidikan_ayah || '-' },
-        { q: 'Nama Ibu?', a: mahasiswa.nama_ibu || '-' },
-        { q: 'Pekerjaan Ibu?', a: mahasiswa.pekerjaan_ibu || '-' },
-        { q: 'Pendidikan Ibu?', a: mahasiswa.pendidikan_ibu || '-' },
-        { q: 'Kontak Utama?', a: mahasiswa.kontak_utama || '-' },
-      ]
-    }
+  const tabs = [
+    { id: 'akademik' as const, label: 'Akademik' },
+    { id: 'pribadi' as const, label: 'Data Pribadi' },
+    { id: 'keluarga' as const, label: 'Keluarga' },
+    { id: 'khs' as const, label: 'KHS Per Semester' },
   ];
 
   return (
-    <MainLayout>
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <button
-            onClick={() => router.back()}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-          >
-            <ArrowLeftIcon className="w-6 h-6 text-gray-600" />
-          </button>
-          <h1 className="text-3xl font-bold text-gray-900">Detail Mahasiswa</h1>
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-md border-b border-blue-100">
+        <div className="px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center space-x-3">
+            <UserIcon className="h-8 w-8 text-blue-900" />
+            <div>
+              <h1 className="text-2xl font-bold text-blue-900">Detail Mahasiswa</h1>
+              <p className="text-sm text-blue-600">Informasi lengkap data akademik & pribadi</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="px-3 sm:px-5 lg:px-6 py-6">
+        <Link href="/" className="inline-flex items-center text-blue-600 hover:text-blue-900 mb-6">
+          <ChevronLeftIcon className="h-5 w-5 mr-1" /> Kembali ke Dashboard
+        </Link>
+
+        {/* Profile Header */}
+        <div className="bg-white rounded-xl shadow-md border border-blue-100 overflow-hidden mb-6">
+          <div className="bg-blue-900 px-8 py-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+              <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-3xl font-bold text-white">{m.nama?.charAt(0) || '?'}</span>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-white">{m.nama}</h2>
+                <p className="text-blue-200 text-lg">{m.nim}</p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-700 text-white">Angkatan {m.angkatan}</span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${m.status === 'Aktif' ? 'bg-green-500 text-white' : m.status === 'Alumni' ? 'bg-purple-500 text-white' : 'bg-red-500 text-white'}`}>{m.status}</span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${m.kategori === 'Berprestasi' ? 'bg-yellow-400 text-yellow-900' : m.kategori === 'Normal' ? 'bg-blue-400 text-white' : 'bg-orange-400 text-white'}`}>{m.kategori}</span>
+                  {m.lulus && <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-600 text-white">LULUS</span>}
+                </div>
+                {m.prodi && <p className="text-blue-300 text-sm mt-2">{m.prodi.nama_prodi} ({m.prodi.gelar_pendek})</p>}
+                <p className="text-blue-300 text-sm">Dosen PA: {dosenNama}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Status Card */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">{mahasiswa.nama}</h2>
-              <p className="text-gray-600 mt-1">NIM: {mahasiswa.nim}</p>
-            </div>
-            <span className={`px-4 py-2 rounded-full font-semibold ${getStatusColor(mahasiswa.status)}`}>
-              {mahasiswa.status}
-            </span>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <div className="bg-white rounded-xl shadow-md border border-blue-100 p-4 text-center">
+            <p className="text-xs text-gray-500">IPK</p>
+            <p className={`text-2xl font-bold ${(m.ipk||0) >= 3.5 ? 'text-green-700' : (m.ipk||0) >= 3.0 ? 'text-blue-700' : 'text-orange-700'}`}>{(m.ipk||0).toFixed(2)}</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <p className="text-gray-500 text-sm">Jurusan</p>
-              <p className="font-semibold text-gray-900">{mahasiswa.jurusan}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Angkatan</p>
-              <p className="font-semibold text-gray-900">{mahasiswa.angkatan}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">IPK</p>
-              <p className="font-semibold text-gray-900">{mahasiswa.ipk}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Kehadiran</p>
-              <p className="font-semibold text-gray-900">{mahasiswa.kehadiran}%</p>
-            </div>
+          <div className="bg-white rounded-xl shadow-md border border-blue-100 p-4 text-center">
+            <p className="text-xs text-gray-500">SKS Lulus</p>
+            <p className="text-2xl font-bold text-gray-900">{m.sks_lulus}</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-md border border-blue-100 p-4 text-center">
+            <p className="text-xs text-gray-500">MK Lulus</p>
+            <p className="text-2xl font-bold text-gray-900">{m.matakuliah_lulus}</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-md border border-blue-100 p-4 text-center">
+            <p className="text-xs text-gray-500">MK Diulang</p>
+            <p className={`text-2xl font-bold ${m.jumlah_mk_diulang > 0 ? 'text-red-700' : 'text-green-700'}`}>{m.jumlah_mk_diulang}</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-md border border-blue-100 p-4 text-center">
+            <p className="text-xs text-gray-500">SKS MK Diulang</p>
+            <p className={`text-2xl font-bold ${m.sks_mk_diulang > 0 ? 'text-red-700' : 'text-green-700'}`}>{m.sks_mk_diulang}</p>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="bg-white rounded-xl shadow-md border border-blue-100 p-6 mb-6">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-gray-600 font-medium">Progress Kelulusan SKS</span>
+            <span className="font-bold text-gray-900">{m.sks_lulus} / {m.sks_total} ({progressSKS.toFixed(1)}%)</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-4">
+            <div className={`h-4 rounded-full transition-all ${progressSKS >= 75 ? 'bg-green-500' : progressSKS >= 50 ? 'bg-blue-500' : 'bg-orange-500'}`} style={{width: `${progressSKS}%`}}></div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-gray-200 bg-white rounded-lg p-2">
-          {[
-            { id: 'biodata', label: 'Biodata', icon: UserIcon },
-            { id: 'akademik', label: 'Akademik', icon: AcademicCapIcon },
-            { id: 'dokumen', label: 'Dokumen', icon: DocumentTextIcon },
-            { id: 'analisis', label: 'Analisis', icon: ClipboardIcon },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-                activeTab === tab.id
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <tab.icon className="w-5 h-5" />
+        <div className="flex space-x-1 bg-white rounded-xl shadow-md border border-blue-100 p-1 mb-6">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 py-3 px-4 rounded-lg text-sm font-semibold transition-colors ${activeTab === tab.id ? 'bg-blue-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Biodata Tab */}
-        {activeTab === 'biodata' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <UserIcon className="w-5 h-5" />
-                Informasi Pribadi
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                {[
-                  { label: 'Nama Lengkap', value: mahasiswa.nama },
-                  { label: 'NIM', value: mahasiswa.nim },
-                  { label: 'Tempat/Tanggal Lahir', value: `${mahasiswa.tempat_lahir}, ${mahasiswa.tanggal_lahir}` },
-                  { label: 'Jenis Kelamin', value: mahasiswa.jenis_kelamin },
-                  { label: 'Agama', value: mahasiswa.agama },
-                  { label: 'Status Pernikahan', value: mahasiswa.status_pernikahan },
-                  { label: 'KTP', value: mahasiswa.no_ktp },
-                  { label: 'Kewarganegaraan', value: mahasiswa.kewarganegaraan },
-                  { label: 'Suku Bangsa', value: mahasiswa.suku_bangsa },
-                  { label: 'Telepon', value: mahasiswa.telp },
-                  { label: 'HP', value: mahasiswa.hp },
-                  { label: 'Email', value: mahasiswa.email },
-                ].map((item, idx) => (
-                  <div key={idx} className="border-b pb-3">
-                    <p className="text-gray-500 text-sm">{item.label}</p>
-                    <p className="font-semibold text-gray-900">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <HomeIcon className="w-5 h-5" />
-                Alamat Sekarang
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                {[
-                  { label: 'Alamat', value: mahasiswa.alamat_sekarang },
-                  { label: 'Desa/Kelurahan', value: mahasiswa.desa_sekarang },
-                  { label: 'Kecamatan', value: mahasiswa.kecamatan_sekarang },
-                  { label: 'Kabupaten', value: mahasiswa.kabupaten_sekarang },
-                  { label: 'Provinsi', value: mahasiswa.provinsi_sekarang },
-                  { label: 'Jarak ke Kampus', value: `${mahasiswa.jarak_kampus} km` },
-                  { label: 'Kendaraan', value: mahasiswa.kendaraan_kampus },
-                ].map((item, idx) => (
-                  <div key={idx} className="border-b pb-3">
-                    <p className="text-gray-500 text-sm">{item.label}</p>
-                    <p className="font-semibold text-gray-900">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <HomeIcon className="w-5 h-5" />
-                Alamat Asal
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                {[
-                  { label: 'Alamat', value: mahasiswa.alamat_daerah },
-                  { label: 'Desa/Kelurahan', value: mahasiswa.desa_daerah },
-                  { label: 'Kecamatan', value: mahasiswa.kecamatan_daerah },
-                  { label: 'Kabupaten', value: mahasiswa.kabupaten_daerah },
-                  { label: 'Provinsi', value: mahasiswa.provinsi_daerah },
-                ].map((item, idx) => (
-                  <div key={idx} className="border-b pb-3">
-                    <p className="text-gray-500 text-sm">{item.label}</p>
-                    <p className="font-semibold text-gray-900">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Akademik Tab */}
+        {/* Tab Content */}
         {activeTab === 'akademik' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <AcademicCapIcon className="w-5 h-5" />
-                Informasi Akademik
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                {[
-                  { label: 'Jurusan', value: mahasiswa.jurusan },
-                  { label: 'Angkatan', value: mahasiswa.angkatan },
-                  { label: 'Semester', value: mahasiswa.semester },
-                  { label: 'IPK', value: mahasiswa.ipk },
-                  { label: 'Kehadiran', value: `${mahasiswa.kehadiran}%` },
-                  { label: 'SKS Lulus', value: mahasiswa.sks_lulus },
-                  { label: 'SKS Belum Lulus', value: mahasiswa.sks_belum_lulus },
-                  { label: 'MK Mengulang', value: mahasiswa.mk_mengulang },
-                  { label: 'Lama Studi', value: `${mahasiswa.lama_studi} Semester` },
-                  { label: 'Status', value: mahasiswa.status },
-                  { label: 'Prestasi', value: mahasiswa.prestasi || '-' },
-                  { label: 'KIPK', value: mahasiswa.kipk },
-                ].map((item, idx) => (
-                  <div key={idx} className="border-b pb-3">
-                    <p className="text-gray-500 text-sm">{item.label}</p>
-                    <p className="font-semibold text-gray-900">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <SectionCard title="Data SKS" icon={<AcademicCapIcon className="h-6 w-6 text-blue-900" />}>
+              <InfoRow label="SKS Total" value={m.sks_total} />
+              <InfoRow label="SKS Diambil" value={m.sks_diambil} />
+              <InfoRow label="SKS Lulus" value={m.sks_lulus} />
+              <InfoRow label="Matakuliah Lulus" value={m.matakuliah_lulus} />
+              <InfoRow label="MK Diulang" value={m.jumlah_mk_diulang} />
+              <InfoRow label="SKS MK Diulang" value={m.sks_mk_diulang} />
+              <InfoRow label="Rasio Ulang" value={`${rasioUlang.toFixed(1)}%`} />
+            </SectionCard>
+            <SectionCard title="Info Kelulusan" icon={<BookOpenIcon className="h-6 w-6 text-blue-900" />}>
+              <InfoRow label="Status" value={m.status} />
+              <InfoRow label="Kategori" value={m.kategori} />
+              <InfoRow label="Lulus" value={m.lulus ? 'Ya' : 'Belum'} />
+              <InfoRow label="Tanggal Lulus" value={m.tanggal_lulus} />
+              <InfoRow label="Tahun Akademik Lulus" value={m.tahun_akademik_lulus} />
+              <InfoRow label="No Seri Ijazah" value={m.no_seri_ijazah} />
+              <InfoRow label="Masa Studi" value={m.masa_studi} />
+              <InfoRow label="Semester Awal" value={m.semester_awal} />
+            </SectionCard>
+            {m.dosen_penasehat && (
+              <SectionCard title="Dosen Penasehat Akademik" icon={<UserIcon className="h-6 w-6 text-blue-900" />}>
+                <InfoRow label="Nama" value={dosenNama} />
+                <InfoRow label="NIDN" value={m.dosen_penasehat.nidn} />
+                <InfoRow label="Email" value={m.dosen_penasehat.email} />
+              </SectionCard>
+            )}
+            {m.prodi && (
+              <SectionCard title="Program Studi" icon={<AcademicCapIcon className="h-6 w-6 text-blue-900" />}>
+                <InfoRow label="Nama Prodi" value={m.prodi.nama_prodi} />
+                <InfoRow label="Kode Prodi" value={m.prodi.kode_prodi} />
+                <InfoRow label="Status" value={m.prodi.status_prodi} />
+                <InfoRow label="Gelar" value={`${m.prodi.gelar_pendek} (${m.prodi.gelar_panjang})`} />
+                <InfoRow label="Email Prodi" value={m.prodi.email_prodi} />
+              </SectionCard>
+            )}
+          </div>
+        )}
 
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <StarIcon className="w-5 h-5" />
-                Beasiswa & Prestasi
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                {[
-                  { label: 'Beasiswa Dalam', value: mahasiswa.beasiswa || '-' },
-                  { label: 'Beasiswa Luar', value: mahasiswa.beasiswa_luar || '-' },
-                  { label: 'Prestasi', value: mahasiswa.prestasi || '-' },
-                  { label: 'Keterangan', value: mahasiswa.keterangan || '-' },
-                ].map((item, idx) => (
-                  <div key={idx} className="border-b pb-3">
-                    <p className="text-gray-500 text-sm">{item.label}</p>
-                    <p className="font-semibold text-gray-900">{item.value}</p>
-                  </div>
-                ))}
+        {activeTab === 'pribadi' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <SectionCard title="Identitas" icon={<IdentificationIcon className="h-6 w-6 text-blue-900" />}>
+              <InfoRow label="Nama Lengkap" value={m.nama} />
+              <InfoRow label="NIM" value={m.nim} />
+              <InfoRow label="NIK" value={m.nik} />
+              <InfoRow label="Jenis Kelamin" value={m.jenis_kelamin === 'L' ? 'Laki-laki' : m.jenis_kelamin === 'P' ? 'Perempuan' : m.jenis_kelamin} />
+              <InfoRow label="Tempat Lahir" value={m.tempat_lahir} />
+              <InfoRow label="Tanggal Lahir" value={m.tanggal_lahir} />
+            </SectionCard>
+            <SectionCard title="Kontak" icon={<PhoneIcon className="h-6 w-6 text-blue-900" />}>
+              <InfoRow label="HP" value={m.hp} />
+              <InfoRow label="Email" value={m.email} />
+              <InfoRow label="Angkatan" value={m.angkatan} />
+              <InfoRow label="Kode Prodi" value={m.kode_prodi} />
+            </SectionCard>
+          </div>
+        )}
+
+        {activeTab === 'keluarga' && (
+          <SectionCard title="Data Keluarga" icon={<UserGroupIcon className="h-6 w-6 text-blue-900" />}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <OrangTuaCard title="Ayah" data={m.ayah} />
+              <OrangTuaCard title="Ibu" data={m.ibu} />
+              {m.wali && m.wali.nama && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">Wali</h4>
+                  <InfoRow label="Nama" value={m.wali.nama} />
+                  <InfoRow label="HP" value={m.wali.hp} />
+                  <InfoRow label="Email" value={m.wali.email} />
+                  <InfoRow label="Alamat" value={m.wali.alamat} />
+                  <InfoRow label="Pendidikan" value={m.wali.pendidikan} />
+                  <InfoRow label="Pekerjaan" value={m.wali.pekerjaan} />
+                  <InfoRow label="Instansi" value={m.wali.instansi} />
+                  <InfoRow label="Jabatan" value={m.wali.jabatan} />
+                  <InfoRow label="Penghasilan" value={m.wali.penghasilan} />
+                </div>
+              )}
+            </div>
+            {!m.ayah?.nama && !m.ibu?.nama && !m.wali?.nama && (
+              <p className="text-gray-500 text-center py-8">Data keluarga tidak tersedia</p>
+            )}
+          </SectionCard>
+        )}
+
+        {activeTab === 'khs' && (
+          <SectionCard title="Kartu Hasil Studi (KHS)" icon={<BookOpenIcon className="h-6 w-6 text-blue-900" />}>
+            {m.khs && m.khs.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-blue-50 border-b border-gray-200">
+                      <th className="px-3 py-3 text-left font-semibold text-blue-900">Tahun Akademik</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">IPS</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">IPK</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">SKS Diambil</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">SKS Lulus</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">Total SKS Lulus</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">Jml MK</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">MK Lulus</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">MK Diulang</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">SKS Diulang</th>
+                      <th className="px-3 py-3 text-center font-semibold text-blue-900">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {m.khs.map((k, idx) => (
+                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-3 py-3 font-medium text-gray-900">{k.tahun_akademik}</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${(k.ips||0) >= 3.5 ? 'bg-green-100 text-green-800' : (k.ips||0) >= 3.0 ? 'bg-blue-100 text-blue-800' : (k.ips||0) >= 2.0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{(k.ips||0).toFixed(2)}</span>
+                        </td>
+                        <td className="px-3 py-3 text-center font-semibold text-gray-900">{(k.ipk||0).toFixed(2)}</td>
+                        <td className="px-3 py-3 text-center text-gray-700">{k.sks_diambil}</td>
+                        <td className="px-3 py-3 text-center text-gray-700">{k.sks_lulus}</td>
+                        <td className="px-3 py-3 text-center font-semibold text-gray-900">{k.total_sks_lulus}</td>
+                        <td className="px-3 py-3 text-center text-gray-700">{k.jumlah_matakuliah}</td>
+                        <td className="px-3 py-3 text-center text-gray-700">{k.matakuliah_lulus}</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${(k.jumlah_mk_diulang||0) > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>{k.jumlah_mk_diulang || 0}</span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${(k.sks_mk_diulang||0) > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>{k.sks_mk_diulang || 0}</span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${k.status_kelulusan === 'Lulus' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{k.status_kelulusan || '-'}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-8">Data KHS tidak tersedia</p>
+            )}
+          </SectionCard>
+        )}
+
+        {/* Warning */}
+        {m.jumlah_mk_diulang > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6 mt-6">
+            <div className="flex items-start space-x-3">
+              <ExclamationTriangleIcon className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-red-800 mb-1">Perhatian: Mahasiswa Memiliki Matakuliah Diulang</h4>
+                <p className="text-sm text-red-700">Terdapat <strong>{m.jumlah_mk_diulang}</strong> MK diulang ({m.sks_mk_diulang} SKS). Rasio: <strong>{rasioUlang.toFixed(1)}%</strong></p>
               </div>
             </div>
           </div>
         )}
-
-        {/* Dokumen Tab */}
-        {activeTab === 'dokumen' && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <UserGroupIcon className="w-5 h-5" />
-              Informasi Keluarga
-            </h3>
-            <div className="space-y-6">
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">Data Ayah</h4>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {[
-                    { label: 'Nama', value: mahasiswa.nama_ayah },
-                    { label: 'Agama', value: mahasiswa.agama_ayah },
-                    { label: 'Pendidikan', value: mahasiswa.pendidikan_ayah },
-                    { label: 'Pekerjaan', value: mahasiswa.pekerjaan_ayah },
-                    { label: 'Penghasilan', value: mahasiswa.penghasilan_ayah },
-                    { label: 'Status', value: mahasiswa.status_ayah },
-                    { label: 'Alamat', value: mahasiswa.alamat_ayah },
-                    { label: 'Telepon', value: mahasiswa.telepon_ayah },
-                    { label: 'HP', value: mahasiswa.hp_ayah },
-                  ].map((item, idx) => (
-                    <div key={idx} className="border-b pb-3">
-                      <p className="text-gray-500 text-sm">{item.label}</p>
-                      <p className="font-semibold text-gray-900">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">Data Ibu</h4>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {[
-                    { label: 'Nama', value: mahasiswa.nama_ibu },
-                    { label: 'Agama', value: mahasiswa.agama_ibu },
-                    { label: 'Pendidikan', value: mahasiswa.pendidikan_ibu },
-                    { label: 'Pekerjaan', value: mahasiswa.pekerjaan_ibu },
-                    { label: 'Penghasilan', value: mahasiswa.penghasilan_ibu },
-                    { label: 'Status', value: mahasiswa.status_ibu },
-                    { label: 'Alamat', value: mahasiswa.alamat_ibu },
-                    { label: 'Telepon', value: mahasiswa.telepon_ibu },
-                    { label: 'HP', value: mahasiswa.hp_ibu },
-                  ].map((item, idx) => (
-                    <div key={idx} className="border-b pb-3">
-                      <p className="text-gray-500 text-sm">{item.label}</p>
-                      <p className="font-semibold text-gray-900">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-gray-600 text-sm">
-                  <strong>Jumlah Saudara:</strong> {mahasiswa.jumlah_saudara} | <strong>Anak ke:</strong> {mahasiswa.anak_ke} | <strong>Kontak Utama:</strong> {mahasiswa.kontak_utama} | <strong>Sumber Biaya:</strong> {mahasiswa.sumber_biaya}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">Riwayat Pendidikan</h4>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {[
-                    { label: 'Asal SD', value: mahasiswa.sd_asal },
-                    { label: 'Asal SMP', value: mahasiswa.smp_asal },
-                    { label: 'Asal SMA', value: mahasiswa.sma_asal },
-                  ].map((item, idx) => (
-                    <div key={idx} className="border-b pb-3">
-                      <p className="text-gray-500 text-sm">{item.label}</p>
-                      <p className="font-semibold text-gray-900">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Analisis Tab */}
-        {activeTab === 'analisis' && (
-          <div className="space-y-4">
-            {analysisQuestions.map((section, idx) => (
-              <div key={idx} className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  {section.icon}
-                  {section.title}
-                </h3>
-                <div className="space-y-3">
-                  {section.questions.map((qa, qidx) => (
-                    <div key={qidx} className="border-l-4 border-blue-500 pl-4 py-2">
-                      <p className="text-gray-700 font-medium">{qa.q}</p>
-                      <p className="text-blue-600 font-semibold mt-1">{qa.a}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </MainLayout>
+      </main>
+    </div>
   );
 }

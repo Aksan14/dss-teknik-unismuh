@@ -1,9 +1,73 @@
 'use client';
 
-import { createContext, ReactNode, useContext, useState } from 'react';
+import { createContext, ReactNode, useContext, useState, useCallback } from 'react';
 
-interface MahasiswaData {
-  // Identitas Dasar
+// API Base URL
+const API_BASE_URL = 'http://localhost:8080/api/v1';
+
+// Types matching the new simplified API structure
+export interface MahasiswaAPI {
+  nim: string;
+  nama: string;
+  ipk: number;
+  angkatan: number;
+  sks_total: number;
+  sks_diambil: number;
+  sks_lulus: number;
+  matakuliah_lulus: number;
+  jumlah_mk_diulang: number;
+  sks_mk_diulang: number;
+  status: string;
+  kategori: string;
+}
+
+interface MahasiswaListResponse {
+  data: MahasiswaAPI[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+  };
+}
+
+interface ListResponse {
+  data: MahasiswaAPI[];
+  total: number;
+}
+
+export interface StatsAPI {
+  total_mahasiswa: number;
+  mahasiswa_aktif: number;
+  mahasiswa_tidak_aktif: number;
+  alumni: number;
+  berprestasi: number;
+  per_angkatan: Record<string, number>;
+  rata_rata_ipk: number;
+}
+
+export interface HasilSAWAPI {
+  nim: string;
+  nama: string;
+  ipk: number;
+  sks_total: number;
+  sks_diambil: number;
+  sks_lulus: number;
+  matakuliah_lulus: number;
+  jumlah_mk_diulang: number;
+  sks_mk_diulang: number;
+  angkatan: number;
+  nilai_saw: number;
+  kategori: string;
+  ranking: number;
+}
+
+interface SAWResponse {
+  data: HasilSAWAPI[];
+  total: number;
+}
+
+// Legacy interface for backward compatibility with existing pages
+export interface MahasiswaData {
   nim: string;
   nama: string;
   tempat_lahir: string;
@@ -11,16 +75,12 @@ interface MahasiswaData {
   alamat: string;
   no_hp: string;
   email: string;
-  
-  // Data Akademik
   jurusan: string;
   fakultas: string;
   angkatan: number;
   semester: number;
   status: string;
   dosen_pa: string;
-  
-  // Data Nilai & Kehadiran
   ipk: number;
   kehadiran: number;
   sks_lulus: number;
@@ -28,14 +88,10 @@ interface MahasiswaData {
   mk_lulus: number;
   mk_mengulang: number;
   lama_studi: number;
-  
-  // Data Tambahan
   beasiswa: string | null;
   organisasi: string[];
   prestasi: string[];
   catatan_khusus: string | null;
-  
-  // Data Per Semester
   semester_data: SemesterDetail[];
 }
 
@@ -48,7 +104,7 @@ interface SemesterDetail {
   mk_mengulang: number;
 }
 
-interface HasilAnalisis {
+export interface HasilAnalisis {
   nilai_saw: number;
   kategori: 'Berprestasi' | 'Normal' | 'Berisiko';
   rekomendasi: string[];
@@ -56,160 +112,108 @@ interface HasilAnalisis {
   status_kelulusan: string;
 }
 
+interface FetchParams {
+  limit?: number;
+  offset?: number;
+}
+
 interface MahasiswaContextType {
+  // Legacy support
   mahasiswaData: MahasiswaData | null;
   hasilAnalisis: HasilAnalisis | null;
   isLoading: boolean;
   error: string | null;
   cariMahasiswa: (nama: string, nim: string) => Promise<boolean>;
   resetData: () => void;
+  
+  // New API functions
+  mahasiswaList: MahasiswaAPI[];
+  stats: StatsAPI | null;
+  hasilSAW: HasilSAWAPI[];
+  pagination: { total: number; limit: number; offset: number } | null;
+  fetchMahasiswaAll: (params?: FetchParams) => Promise<void>;
+  fetchMahasiswaAktif: () => Promise<void>;
+  fetchMahasiswaTidakAktif: () => Promise<void>;
+  fetchMahasiswaAlumni: () => Promise<void>;
+  fetchMahasiswaBerprestasi: () => Promise<void>;
+  fetchMahasiswaBeasiswa: () => Promise<void>;
+  fetchMahasiswaByAngkatan: (angkatan: number) => Promise<void>;
+  fetchMahasiswaByNIM: (nim: string) => Promise<MahasiswaAPI | null>;
+  searchMahasiswa: (query: string) => Promise<void>;
+  fetchStats: () => Promise<void>;
+  prosesSAW: () => Promise<void>;
 }
 
 const MahasiswaContext = createContext<MahasiswaContextType | undefined>(undefined);
 
-// Data dummy untuk simulasi (akan diganti dengan API call)
-const DUMMY_MAHASISWA: MahasiswaData[] = [
-  {
-    nim: '105841100420',
-    nama: 'Ahmad Fauzi Rahman',
-    tempat_lahir: 'Makassar',
-    tanggal_lahir: '2002-05-15',
-    alamat: 'Jl. Sultan Alauddin No. 259, Makassar',
-    no_hp: '081234567890',
-    email: 'ahmadfauzi@unismuh.ac.id',
+// Helper function to build query string
+function buildQueryString(params?: FetchParams): string {
+  if (!params) return '';
+  const searchParams = new URLSearchParams();
+  if (params.limit) searchParams.append('limit', params.limit.toString());
+  if (params.offset) searchParams.append('offset', params.offset.toString());
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
+}
+
+// Convert API data to legacy MahasiswaData format
+function convertToLegacyFormat(api: MahasiswaAPI): MahasiswaData {
+  const currentYear = new Date().getFullYear();
+  const yearsDiff = currentYear - api.angkatan;
+  const estimatedSemester = Math.min(yearsDiff * 2 + 1, 14);
+  
+  return {
+    nim: api.nim,
+    nama: api.nama,
+    tempat_lahir: '-',
+    tanggal_lahir: '-',
+    alamat: '-',
+    no_hp: '-',
+    email: '-',
     jurusan: 'Teknik Informatika',
     fakultas: 'Fakultas Teknik',
-    angkatan: 2020,
-    semester: 8,
-    status: 'Aktif',
-    dosen_pa: 'Dr. Ir. Muhammad Yusuf, M.T.',
-    ipk: 3.75,
-    kehadiran: 95,
-    sks_lulus: 132,
-    total_sks_wajib: 144,
-    mk_lulus: 52,
-    mk_mengulang: 0,
-    lama_studi: 8,
-    beasiswa: 'Beasiswa Prestasi Akademik',
-    organisasi: ['BEM Fakultas Teknik', 'HMTI'],
-    prestasi: ['Juara 1 Hackathon Nasional 2023', 'Best Paper ICIC 2022'],
-    catatan_khusus: null,
-    semester_data: [
-      { semester: 1, ips: 3.65, sks_diambil: 20, sks_lulus: 20, mk_lulus: 8, mk_mengulang: 0 },
-      { semester: 2, ips: 3.70, sks_diambil: 22, sks_lulus: 22, mk_lulus: 9, mk_mengulang: 0 },
-      { semester: 3, ips: 3.80, sks_diambil: 22, sks_lulus: 22, mk_lulus: 9, mk_mengulang: 0 },
-      { semester: 4, ips: 3.75, sks_diambil: 22, sks_lulus: 22, mk_lulus: 9, mk_mengulang: 0 },
-      { semester: 5, ips: 3.85, sks_diambil: 20, sks_lulus: 20, mk_lulus: 8, mk_mengulang: 0 },
-      { semester: 6, ips: 3.70, sks_diambil: 18, sks_lulus: 18, mk_lulus: 7, mk_mengulang: 0 },
-      { semester: 7, ips: 3.80, sks_diambil: 8, sks_lulus: 8, mk_lulus: 2, mk_mengulang: 0 },
-      { semester: 8, ips: 0, sks_diambil: 0, sks_lulus: 0, mk_lulus: 0, mk_mengulang: 0 },
-    ]
-  },
-  {
-    nim: '105841100421',
-    nama: 'Siti Nurhaliza',
-    tempat_lahir: 'Gowa',
-    tanggal_lahir: '2001-08-20',
-    alamat: 'Jl. Poros Malino No. 123, Gowa',
-    no_hp: '082345678901',
-    email: 'sitinurhaliza@unismuh.ac.id',
-    jurusan: 'Teknik Informatika',
-    fakultas: 'Fakultas Teknik',
-    angkatan: 2020,
-    semester: 8,
-    status: 'Aktif',
-    dosen_pa: 'Dr. Hj. Fatimah, M.Kom',
-    ipk: 3.25,
-    kehadiran: 88,
-    sks_lulus: 120,
-    total_sks_wajib: 144,
-    mk_lulus: 48,
-    mk_mengulang: 3,
-    lama_studi: 8,
-    beasiswa: null,
-    organisasi: ['HMTI'],
-    prestasi: [],
-    catatan_khusus: 'Perlu bimbingan tambahan untuk mata kuliah pemrograman',
-    semester_data: [
-      { semester: 1, ips: 3.20, sks_diambil: 20, sks_lulus: 18, mk_lulus: 7, mk_mengulang: 1 },
-      { semester: 2, ips: 3.30, sks_diambil: 22, sks_lulus: 20, mk_lulus: 8, mk_mengulang: 1 },
-      { semester: 3, ips: 3.25, sks_diambil: 22, sks_lulus: 20, mk_lulus: 8, mk_mengulang: 1 },
-      { semester: 4, ips: 3.35, sks_diambil: 22, sks_lulus: 22, mk_lulus: 9, mk_mengulang: 0 },
-      { semester: 5, ips: 3.20, sks_diambil: 20, sks_lulus: 20, mk_lulus: 8, mk_mengulang: 0 },
-      { semester: 6, ips: 3.30, sks_diambil: 18, sks_lulus: 18, mk_lulus: 7, mk_mengulang: 0 },
-      { semester: 7, ips: 3.00, sks_diambil: 6, sks_lulus: 2, mk_lulus: 1, mk_mengulang: 0 },
-      { semester: 8, ips: 0, sks_diambil: 0, sks_lulus: 0, mk_lulus: 0, mk_mengulang: 0 },
-    ]
-  },
-  {
-    nim: '105841100422',
-    nama: 'Muhammad Rizky Pratama',
-    tempat_lahir: 'Makassar',
-    tanggal_lahir: '2002-01-10',
-    alamat: 'Jl. Urip Sumoharjo No. 45, Makassar',
-    no_hp: '083456789012',
-    email: 'rizkypratama@unismuh.ac.id',
-    jurusan: 'Teknik Informatika',
-    fakultas: 'Fakultas Teknik',
-    angkatan: 2020,
-    semester: 9,
-    status: 'Aktif',
-    dosen_pa: 'Dr. Ir. Muhammad Yusuf, M.T.',
-    ipk: 2.45,
-    kehadiran: 72,
-    sks_lulus: 98,
-    total_sks_wajib: 144,
-    mk_lulus: 40,
-    mk_mengulang: 8,
-    lama_studi: 9,
+    angkatan: api.angkatan,
+    semester: estimatedSemester,
+    status: api.status,
+    dosen_pa: '-',
+    ipk: api.ipk,
+    kehadiran: 0,
+    sks_lulus: api.sks_lulus,
+    total_sks_wajib: api.sks_total || 144,
+    mk_lulus: api.matakuliah_lulus,
+    mk_mengulang: api.jumlah_mk_diulang,
+    lama_studi: estimatedSemester,
     beasiswa: null,
     organisasi: [],
-    prestasi: [],
-    catatan_khusus: 'Mahasiswa dengan status peringatan akademik. Perlu perhatian khusus dari dosen PA.',
-    semester_data: [
-      { semester: 1, ips: 2.60, sks_diambil: 20, sks_lulus: 14, mk_lulus: 5, mk_mengulang: 3 },
-      { semester: 2, ips: 2.50, sks_diambil: 18, sks_lulus: 14, mk_lulus: 5, mk_mengulang: 2 },
-      { semester: 3, ips: 2.40, sks_diambil: 18, sks_lulus: 14, mk_lulus: 6, mk_mengulang: 1 },
-      { semester: 4, ips: 2.55, sks_diambil: 18, sks_lulus: 16, mk_lulus: 6, mk_mengulang: 1 },
-      { semester: 5, ips: 2.30, sks_diambil: 16, sks_lulus: 12, mk_lulus: 5, mk_mengulang: 1 },
-      { semester: 6, ips: 2.45, sks_diambil: 16, sks_lulus: 14, mk_lulus: 6, mk_mengulang: 0 },
-      { semester: 7, ips: 2.50, sks_diambil: 16, sks_lulus: 14, mk_lulus: 7, mk_mengulang: 0 },
-      { semester: 8, ips: 0, sks_diambil: 0, sks_lulus: 0, mk_lulus: 0, mk_mengulang: 0 },
-      { semester: 9, ips: 0, sks_diambil: 0, sks_lulus: 0, mk_lulus: 0, mk_mengulang: 0 },
-    ]
-  }
-];
-
-function hitungAnalisis(data: MahasiswaData): HasilAnalisis {
-  // Bobot SAW (tanpa kehadiran)
-  const bobot = {
-    ipk: 0.35,
-    sks: 0.30,
-    mk_mengulang: 0.20,
-    lama_studi: 0.15
+    prestasi: api.ipk >= 3.5 ? ['Berprestasi Akademik'] : [],
+    catatan_khusus: null,
+    semester_data: []
   };
+}
 
-  // Normalisasi
+// Calculate analysis from API data (5 criteria matching backend SAW)
+function hitungAnalisisFromAPI(data: MahasiswaAPI): HasilAnalisis {
+  // 5 criteria: IPK(30% benefit), SKS Lulus(20% benefit), MK Lulus(15% benefit),
+  //             MK Diulang(20% cost), SKS MK Diulang(15% cost)
+  const totalSksWajib = data.sks_total || 144;
+  const maxMK = 60; // reference max for normalization
+
+  // Normalized values (0-1)
   const normIpk = data.ipk / 4.0;
-  const normSks = data.sks_lulus / data.total_sks_wajib;
-  const normMk = data.mk_mengulang === 0 ? 1.0 : 1.0 / (1 + data.mk_mengulang);
-  const normLama = Math.min(8 / data.lama_studi, 1.0);
+  const normSksLulus = Math.min(data.sks_lulus / totalSksWajib, 1);
+  const normMkLulus = Math.min(data.matakuliah_lulus / maxMK, 1);
+  // Cost criteria: lower is better -> invert
+  const normMkDiulang = data.jumlah_mk_diulang > 0 ? 1 - Math.min(data.jumlah_mk_diulang / 10, 1) : 1;
+  const normSksMkDiulang = data.sks_mk_diulang > 0 ? 1 - Math.min(data.sks_mk_diulang / 30, 1) : 1;
 
-  // Nilai SAW
-  const nilaiSaw = (
-    normIpk * bobot.ipk +
-    normSks * bobot.sks +
-    normMk * bobot.mk_mengulang +
-    normLama * bobot.lama_studi
-  );
+  const nilaiSaw = normIpk * 0.30 + normSksLulus * 0.20 + normMkLulus * 0.15 +
+                   normMkDiulang * 0.20 + normSksMkDiulang * 0.15;
 
-  // Kategori
   let kategori: 'Berprestasi' | 'Normal' | 'Berisiko';
   if (nilaiSaw >= 0.75) kategori = 'Berprestasi';
   else if (nilaiSaw >= 0.50) kategori = 'Normal';
   else kategori = 'Berisiko';
 
-  // Rekomendasi
   const rekomendasi: string[] = [];
   let rekomendasiSks = 20;
 
@@ -227,22 +231,17 @@ function hitungAnalisis(data: MahasiswaData): HasilAnalisis {
     rekomendasiSks = 16;
   }
 
-  if (data.mk_mengulang > 0) {
-    rekomendasi.push(`Terdapat ${data.mk_mengulang} mata kuliah yang perlu mengulang. Prioritaskan untuk mengulang mata kuliah tersebut.`);
-  }
-
-  const sksSisa = data.total_sks_wajib - data.sks_lulus;
+  const sksSisa = totalSksWajib - data.sks_lulus;
   if (sksSisa > 0) {
     rekomendasi.push(`Masih tersisa ${sksSisa} SKS untuk menyelesaikan studi.`);
   }
 
-  if (data.lama_studi > 8) {
-    rekomendasi.push('Lama studi melebihi batas normal. Perlu percepatan penyelesaian studi.');
+  if (data.jumlah_mk_diulang > 0) {
+    rekomendasi.push(`Terdapat ${data.jumlah_mk_diulang} matakuliah diulang (${data.sks_mk_diulang} SKS). Prioritaskan matakuliah yang perlu diperbaiki.`);
   }
 
-  // Status Kelulusan
   let statusKelulusan = '';
-  const persenSks = (data.sks_lulus / data.total_sks_wajib) * 100;
+  const persenSks = (data.sks_lulus / totalSksWajib) * 100;
   if (persenSks >= 90) {
     statusKelulusan = 'Hampir Lulus - Tinggal menyelesaikan tugas akhir';
   } else if (persenSks >= 75) {
@@ -263,69 +262,286 @@ function hitungAnalisis(data: MahasiswaData): HasilAnalisis {
 }
 
 export function MahasiswaProvider({ children }: { children: ReactNode }) {
+  // Legacy state
   const [mahasiswaData, setMahasiswaData] = useState<MahasiswaData | null>(null);
   const [hasilAnalisis, setHasilAnalisis] = useState<HasilAnalisis | null>(null);
+  
+  // New API state
+  const [mahasiswaList, setMahasiswaList] = useState<MahasiswaAPI[]>([]);
+  const [stats, setStats] = useState<StatsAPI | null>(null);
+  const [hasilSAW, setHasilSAW] = useState<HasilSAWAPI[]>([]);
+  const [pagination, setPagination] = useState<{ total: number; limit: number; offset: number } | null>(null);
+  
+  // Common state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const cariMahasiswa = async (nama: string, nim: string): Promise<boolean> => {
+  // Generic fetch helper
+  const fetchAPI = useCallback(async <T,>(endpoint: string, options?: RequestInit): Promise<T | null> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (err) {
+      console.error('API Error:', err);
+      throw err;
+    }
+  }, []);
+
+  // Fetch all mahasiswa
+  const fetchMahasiswaAll = useCallback(async (params?: FetchParams) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<MahasiswaListResponse>(`/mahasiswa${buildQueryString(params)}`);
+      if (response) {
+        setMahasiswaList(response.data || []);
+        setPagination(response.pagination);
+      }
+    } catch (err) {
+      setError('Gagal mengambil data mahasiswa');
+      setMahasiswaList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Fetch active mahasiswa
+  const fetchMahasiswaAktif = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<ListResponse>(`/mahasiswa/aktif`);
+      if (response) {
+        setMahasiswaList(response.data || []);
+      }
+    } catch (err) {
+      setError('Gagal mengambil data mahasiswa aktif');
+      setMahasiswaList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Fetch inactive mahasiswa
+  const fetchMahasiswaTidakAktif = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<ListResponse>(`/mahasiswa/tidak-aktif`);
+      if (response) {
+        setMahasiswaList(response.data || []);
+      }
+    } catch (err) {
+      setError('Gagal mengambil data mahasiswa tidak aktif');
+      setMahasiswaList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Fetch alumni
+  const fetchMahasiswaAlumni = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<ListResponse>(`/mahasiswa/alumni`);
+      if (response) {
+        setMahasiswaList(response.data || []);
+      }
+    } catch (err) {
+      setError('Gagal mengambil data alumni');
+      setMahasiswaList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Fetch mahasiswa berprestasi
+  const fetchMahasiswaBerprestasi = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<ListResponse>(`/mahasiswa/berprestasi`);
+      if (response) {
+        setMahasiswaList(response.data || []);
+      }
+    } catch (err) {
+      setError('Gagal mengambil data mahasiswa berprestasi');
+      setMahasiswaList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Fetch mahasiswa beasiswa
+  const fetchMahasiswaBeasiswa = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<ListResponse>(`/mahasiswa/beasiswa`);
+      if (response) {
+        setMahasiswaList(response.data || []);
+      }
+    } catch (err) {
+      setError('Gagal mengambil data mahasiswa beasiswa');
+      setMahasiswaList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Fetch mahasiswa by angkatan
+  const fetchMahasiswaByAngkatan = useCallback(async (angkatan: number) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<ListResponse>(`/mahasiswa/angkatan/${angkatan}`);
+      if (response) {
+        setMahasiswaList(response.data || []);
+      }
+    } catch (err) {
+      setError('Gagal mengambil data mahasiswa berdasarkan angkatan');
+      setMahasiswaList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Fetch mahasiswa by NIM
+  const fetchMahasiswaByNIM = useCallback(async (nim: string): Promise<MahasiswaAPI | null> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<MahasiswaAPI>(`/mahasiswa/${nim}`);
+      return response;
+    } catch (err) {
+      setError('Gagal mengambil data mahasiswa');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Search mahasiswa
+  const searchMahasiswa = useCallback(async (query: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<ListResponse>(`/mahasiswa/search?q=${encodeURIComponent(query)}`);
+      if (response) {
+        setMahasiswaList(response.data || []);
+      }
+    } catch (err) {
+      setError('Gagal mencari mahasiswa');
+      setMahasiswaList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Fetch stats
+  const fetchStats = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<StatsAPI>(`/stats`);
+      if (response) {
+        setStats(response);
+      }
+    } catch (err) {
+      setError('Gagal mengambil statistik');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Proses SAW
+  const prosesSAW = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<SAWResponse>(`/analisis/saw`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response) {
+        setHasilSAW(response.data || []);
+      }
+    } catch (err) {
+      setError('Gagal memproses analisis SAW');
+      setHasilSAW([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAPI]);
+
+  // Legacy: cariMahasiswa function
+  const cariMahasiswa = useCallback(async (nama: string, nim: string): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Simulasi API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Cari di data dummy
-      const found = DUMMY_MAHASISWA.find(
-        m => m.nim === nim && m.nama.toLowerCase().includes(nama.toLowerCase())
-      );
-
-      if (found) {
-        setMahasiswaData(found);
-        setHasilAnalisis(hitungAnalisis(found));
-        setIsLoading(false);
+      const response = await fetchMahasiswaByNIM(nim);
+      
+      if (response && response.nama.toLowerCase().includes(nama.toLowerCase())) {
+        const legacyData = convertToLegacyFormat(response);
+        setMahasiswaData(legacyData);
+        setHasilAnalisis(hitungAnalisisFromAPI(response));
         return true;
       }
 
-      // Jika tidak ditemukan di dummy, coba fetch dari backend
-      try {
-        const response = await fetch(`http://localhost:8080/mahasiswa/${nim}`);
-        if (response.ok) {
-          const data = await response.json();
-          setMahasiswaData(data);
-          setHasilAnalisis(hitungAnalisis(data));
-          setIsLoading(false);
-          return true;
-        }
-      } catch {
-        // Backend tidak tersedia, lanjut dengan error
-      }
-
       setError('Mahasiswa tidak ditemukan. Pastikan nama dan NIM sudah benar.');
-      setIsLoading(false);
       return false;
     } catch (err) {
       setError('Terjadi kesalahan saat mencari data mahasiswa.');
-      setIsLoading(false);
       return false;
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [fetchMahasiswaByNIM]);
 
-  const resetData = () => {
+  // Reset data
+  const resetData = useCallback(() => {
     setMahasiswaData(null);
     setHasilAnalisis(null);
+    setMahasiswaList([]);
+    setStats(null);
+    setHasilSAW([]);
+    setPagination(null);
     setError(null);
-  };
+  }, []);
 
   return (
     <MahasiswaContext.Provider value={{ 
+      // Legacy
       mahasiswaData, 
       hasilAnalisis, 
       isLoading, 
       error, 
       cariMahasiswa, 
-      resetData 
+      resetData,
+      
+      // New API
+      mahasiswaList,
+      stats,
+      hasilSAW,
+      pagination,
+      fetchMahasiswaAll,
+      fetchMahasiswaAktif,
+      fetchMahasiswaTidakAktif,
+      fetchMahasiswaAlumni,
+      fetchMahasiswaBerprestasi,
+      fetchMahasiswaBeasiswa,
+      fetchMahasiswaByAngkatan,
+      fetchMahasiswaByNIM,
+      searchMahasiswa,
+      fetchStats,
+      prosesSAW
     }}>
       {children}
     </MahasiswaContext.Provider>

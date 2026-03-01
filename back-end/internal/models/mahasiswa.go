@@ -1,6 +1,27 @@
 package models
 
-// Mahasiswa represents a student record
+// MahasiswaAPI represents student data from the external GraphQL API
+type MahasiswaAPI struct {
+	Angkatan                int     `json:"angkatan"`
+	NIM                     string  `json:"nim"`
+	Nama                    string  `json:"nama"`
+	TempatLahir             string  `json:"tempat_lahir"`
+	TanggalLahir            string  `json:"tanggal_lahir"`
+	SKSTotal                int     `json:"sks_total"`
+	SKSDiambil              int     `json:"sks_diambil"`
+	IPS                     float64 `json:"ips"`
+	IPK                     float64 `json:"ipk"`
+	SemesterAktif           int     `json:"semester_aktif"`
+	SKSLulus                int     `json:"sks_lulus"`
+	MatakuliahLulus         int     `json:"matakuliah_lulus"`
+	JumlahMatakuliahDiulang int     `json:"jumlah_matakuliah_diulang"`
+	SKSMatakuliahDiulang    int     `json:"sks_matakuliah_diulang"`
+	// Computed fields
+	Status   string `json:"status"`
+	Kategori string `json:"kategori"`
+}
+
+// Mahasiswa represents a student record (legacy for compatibility)
 type Mahasiswa struct {
 	ID               int    `json:"id"`
 	NIM              string `json:"nim"`
@@ -98,6 +119,13 @@ type HasilSAW struct {
 	Kategori  string    `json:"kategori"`
 }
 
+// HasilSAWAPI represents the result of SAW analysis for API data
+type HasilSAWAPI struct {
+	Mahasiswa MahasiswaAPI `json:"mahasiswa"`
+	Nilai     float64      `json:"nilai"`
+	Kategori  string       `json:"kategori"`
+}
+
 // Stats represents student statistics
 type Stats struct {
 	TotalMahasiswa      int `json:"total_mahasiswa"`
@@ -105,4 +133,28 @@ type Stats struct {
 	MahasiswaTidakAktif int `json:"mahasiswa_tidak_aktif"`
 	Berprestasi         int `json:"berprestasi"`
 	Alumni              int `json:"alumni"`
+}
+
+// StatsAPI represents student statistics from API
+type StatsAPI struct {
+	TotalMahasiswa      int         `json:"total_mahasiswa"`
+	MahasiswaAktif      int         `json:"mahasiswa_aktif"`
+	MahasiswaTidakAktif int         `json:"mahasiswa_tidak_aktif"`
+	Alumni              int         `json:"alumni"`
+	Berprestasi         int         `json:"berprestasi"`
+	PerAngkatan         map[int]int `json:"per_angkatan"`
+	RataRataIPK         float64     `json:"rata_rata_ipk"`
+}
+
+// PaginationInfo contains pagination metadata
+type PaginationInfo struct {
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+	Total  int `json:"total"`
+}
+
+// MahasiswaListResponse represents paginated list of mahasiswa
+type MahasiswaListResponse struct {
+	Data       []MahasiswaAPI `json:"data"`
+	Pagination PaginationInfo `json:"pagination"`
 }

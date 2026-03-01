@@ -33,3 +33,15 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* Ensure form elements always have visible text on light backgrounds */
+input,
+select,
+textarea {
+  color: #111827;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af;
+}

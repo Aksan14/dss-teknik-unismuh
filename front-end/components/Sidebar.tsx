@@ -18,8 +18,7 @@ import { usePathname } from 'next/navigation';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Cari Mahasiswa', href: '/cari-mahasiswa', icon: MagnifyingGlassIcon },
-  { name: 'Pencarian & Analisis', href: '/analisis-search', icon: ChartBarIcon },
-  { name: 'Analisis Status', href: '/analisis-mahasiswa', icon: AcademicCapIcon },
+  { name: 'Peninjauan Mahasiswa', href: '/analisis-search', icon: ChartBarIcon },
   { name: 'Fitur Utama', href: '/fitur-utama', icon: IdentificationIcon },
 ];
 
@@ -81,7 +80,7 @@ export default function Sidebar() {
 
       {/* Mobile Bottom Navigation */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-blue-900 border-t border-blue-700 shadow-lg z-50">
-        <div className="grid grid-cols-3 h-16">
+        <div className="grid grid-cols-4 h-16">
           {navigation.map((item) => {
             const isActive = pathname === item.href;
             return (

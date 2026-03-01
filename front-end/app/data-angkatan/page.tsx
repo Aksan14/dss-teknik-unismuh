@@ -1,476 +1,309 @@
 'use client';
 
 import {
-  AcademicCapIcon,
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  CalendarDaysIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  UserGroupIcon
+  HomeIcon,
+  ChevronLeftIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 
-interface MahasiswaData {
+interface Mahasiswa {
   nim: string;
   nama: string;
-  jurusan: string;
-  fakultas: string;
-  angkatan: number;
-  semester: number;
-  status: string;
   ipk: number;
-  kehadiran: number;
-  sks_lulus: number;
-  total_sks_wajib: number;
-  mk_lulus: number;
-  mk_mengulang: number;
-  lama_studi: number;
-  beasiswa: string | null;
-  organisasi: string[];
-  prestasi: string[];
-  catatan_khusus: string | null;
-  semester_data: any[];
-}
-
-interface AngkatanStats {
   angkatan: number;
-  total_mahasiswa: number;
-  mahasiswa_aktif: number;
-  rata_rata_ipk: number;
-  rata_rata_kehadiran: number;
-  mahasiswa_berprestasi: number;
-  mahasiswa_berisiko: number;
-  total_sks_diselesaikan: number;
+  sks_total: number;
+  sks_diambil: number;
+  sks_lulus: number;
+  matakuliah_lulus: number;
+  jumlah_mk_diulang: number;
+  sks_mk_diulang: number;
+  status: string;
+  kategori: string;
 }
 
-interface MahasiswaAngkatan extends MahasiswaData {
-  status_akademik: 'Berprestasi' | 'Normal' | 'Berisiko';
-}
+const YEARS = [2019, 2020, 2021, 2022, 2023, 2024, 2025];
+const PER_PAGE = 30;
 
-const DUMMY_MAHASISWA: MahasiswaData[] = [
-  {
-    nim: '105841100420',
-    nama: 'Ahmad Fauzi Rahman',
-    jurusan: 'Teknik Informatika',
-    fakultas: 'Fakultas Teknik',
-    angkatan: 2020,
-    semester: 8,
-    status: 'Aktif',
-    ipk: 3.75,
-    kehadiran: 95,
-    sks_lulus: 132,
-    total_sks_wajib: 144,
-    mk_lulus: 52,
-    mk_mengulang: 0,
-    lama_studi: 8,
-    beasiswa: 'Beasiswa Prestasi Akademik',
-    organisasi: ['BEM Fakultas Teknik', 'HMTI'],
-    prestasi: ['Juara 1 Hackathon Nasional 2023', 'Best Paper ICIC 2022'],
-    catatan_khusus: null,
-    semester_data: []
-  },
-  {
-    nim: '105841100421',
-    nama: 'Siti Nurhaliza',
-    jurusan: 'Teknik Informatika',
-    fakultas: 'Fakultas Teknik',
-    angkatan: 2020,
-    semester: 8,
-    status: 'Aktif',
-    ipk: 3.25,
-    kehadiran: 88,
-    sks_lulus: 120,
-    total_sks_wajib: 144,
-    mk_lulus: 48,
-    mk_mengulang: 3,
-    lama_studi: 8,
-    beasiswa: null,
-    organisasi: ['HMTI'],
-    prestasi: [],
-    catatan_khusus: 'Perlu bimbingan tambahan',
-    semester_data: []
-  },
-  {
-    nim: '105841100422',
-    nama: 'Muhammad Rizky Pratama',
-    jurusan: 'Teknik Informatika',
-    fakultas: 'Fakultas Teknik',
-    angkatan: 2020,
-    semester: 9,
-    status: 'Aktif',
-    ipk: 2.45,
-    kehadiran: 72,
-    sks_lulus: 98,
-    total_sks_wajib: 144,
-    mk_lulus: 40,
-    mk_mengulang: 8,
-    lama_studi: 9,
-    beasiswa: null,
-    organisasi: [],
-    prestasi: [],
-    catatan_khusus: 'Mahasiswa dengan status peringatan akademik',
-    semester_data: []
-  }
-];
+export default function DataAngkatan() {
+  const [activeYear, setActiveYear] = useState(2022);
+  const [data, setData] = useState<Mahasiswa[]>([]);
+  const [allData, setAllData] = useState<Mahasiswa[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
-export default function DataAngkatanPage() {
-  const router = useRouter();
-  const [angkatanList, setAngkatanList] = useState<AngkatanStats[]>([]);
-  const [selectedAngkatan, setSelectedAngkatan] = useState<number | null>(null);
-  const [mahasiswaAngkatan, setMahasiswaAngkatan] = useState<MahasiswaAngkatan[]>([]);
-  const [view, setView] = useState<'list' | 'detail'>('list');
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:8080/api/v1/mahasiswa/angkatan/${activeYear}`);
+      const result = await response.json();
+      setAllData(result.data || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setAllData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeYear]);
 
   useEffect(() => {
-    // Generate statistik per angkatan
-    const groupByAngkatan = DUMMY_MAHASISWA.reduce((acc, mhs) => {
-      if (!acc[mhs.angkatan]) {
-        acc[mhs.angkatan] = [];
-      }
-      acc[mhs.angkatan].push(mhs);
-      return acc;
-    }, {} as Record<number, MahasiswaData[]>);
+    fetchData();
+  }, [fetchData]);
 
-    const stats: AngkatanStats[] = Object.entries(groupByAngkatan).map(([angkatan, mahasiswa]) => {
-      const totalMahasiswa = mahasiswa.length;
-      const mahasiswaAktif = mahasiswa.filter(m => m.status === 'Aktif').length;
-      const rataRataIpk = mahasiswa.reduce((sum, m) => sum + m.ipk, 0) / totalMahasiswa;
-      const rataRataKehadiran = mahasiswa.reduce((sum, m) => sum + m.kehadiran, 0) / totalMahasiswa;
-      
-      // Hitung status akademik
-      const mahasiswaWithStatus = mahasiswa.map(m => {
-        const normIpk = m.ipk / 4.0;
-        const normSks = m.sks_lulus / m.total_sks_wajib;
-        const normMk = m.mk_mengulang === 0 ? 1.0 : 1.0 / (1 + m.mk_mengulang);
-        const normLama = Math.min(8 / m.lama_studi, 1.0);
-        const nilaiSaw = (normIpk * 0.35 + normSks * 0.30 + normMk * 0.20 + normLama * 0.15);
-        
-        let status: 'Berprestasi' | 'Normal' | 'Berisiko';
-        if (nilaiSaw >= 0.75) status = 'Berprestasi';
-        else if (nilaiSaw >= 0.50) status = 'Normal';
-        else status = 'Berisiko';
-        
-        return { ...m, status_akademik: status };
-      });
+  const filteredData = useMemo(() => search
+    ? allData.filter(m => 
+        m.nama.toLowerCase().includes(search.toLowerCase()) ||
+        m.nim.includes(search)
+      )
+    : allData, [search, allData]);
 
-      const mahasiswaBerprestasi = mahasiswaWithStatus.filter(m => m.status_akademik === 'Berprestasi').length;
-      const mahasiswaBerisiko = mahasiswaWithStatus.filter(m => m.status_akademik === 'Berisiko').length;
-      const totalSksDiselesaikan = mahasiswa.reduce((sum, m) => sum + m.sks_lulus, 0);
+  const totalPages = Math.ceil(filteredData.length / PER_PAGE);
 
-      return {
-        angkatan: parseInt(angkatan),
-        total_mahasiswa: totalMahasiswa,
-        mahasiswa_aktif: mahasiswaAktif,
-        rata_rata_ipk: rataRataIpk,
-        rata_rata_kehadiran: rataRataKehadiran,
-        mahasiswa_berprestasi: mahasiswaBerprestasi,
-        mahasiswa_berisiko: mahasiswaBerisiko,
-        total_sks_diselesaikan: totalSksDiselesaikan
-      };
-    });
+  useEffect(() => {
+    const start = (currentPage - 1) * PER_PAGE;
+    const end = start + PER_PAGE;
+    setData(filteredData.slice(start, end));
+  }, [filteredData, currentPage]);
 
-    // Sort by angkatan descending
-    stats.sort((a, b) => b.angkatan - a.angkatan);
-    setAngkatanList(stats);
-  }, []);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, activeYear]);
 
-  const handleSelectAngkatan = (angkatan: number) => {
-    setSelectedAngkatan(angkatan);
-    
-    // Filter dan process mahasiswa per angkatan
-    const mahasiswa = DUMMY_MAHASISWA.filter(m => m.angkatan === angkatan);
-    const withStatus = mahasiswa.map(m => {
-      const normIpk = m.ipk / 4.0;
-      const normSks = m.sks_lulus / m.total_sks_wajib;
-      const normMk = m.mk_mengulang === 0 ? 1.0 : 1.0 / (1 + m.mk_mengulang);
-      const normLama = Math.min(8 / m.lama_studi, 1.0);
-      const nilaiSaw = (normIpk * 0.35 + normSks * 0.30 + normMk * 0.20 + normLama * 0.15);
-      
-      let status: 'Berprestasi' | 'Normal' | 'Berisiko';
-      if (nilaiSaw >= 0.75) status = 'Berprestasi';
-      else if (nilaiSaw >= 0.50) status = 'Normal';
-      else status = 'Berisiko';
-      
-      return { ...m, status_akademik: status };
-    });
-
-    setMahasiswaAngkatan(withStatus);
-    setView('detail');
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Berprestasi':
-        return 'bg-green-50 border-green-200';
-      case 'Berisiko':
-        return 'bg-red-50 border-red-200';
-      default:
-        return 'bg-blue-50 border-blue-200';
-    }
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'Berprestasi':
-        return <CheckCircleIcon className="h-8 w-8 text-green-600" />;
-      case 'Berisiko':
-        return <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />;
-      default:
-        return <AcademicCapIcon className="h-8 w-8 text-blue-600" />;
-    }
+  const getPageNumbers = () => {
+    const pages: number[] = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
   };
 
-  const getStatusTextColor = (status: string) => {
-    switch (status) {
-      case 'Berprestasi':
-        return 'text-green-800';
-      case 'Berisiko':
-        return 'text-red-800';
-      default:
-        return 'text-blue-800';
-    }
+  // Calculate stats
+  const stats = {
+    total: filteredData.length,
+    aktif: filteredData.filter(m => m.status === 'Aktif').length,
+    alumni: filteredData.filter(m => m.status === 'Alumni').length,
+    tidakAktif: filteredData.filter(m => m.status === 'Tidak Aktif').length,
+    berprestasi: filteredData.filter(m => m.kategori === 'Berprestasi').length,
+    rataIPK: filteredData.length > 0 
+      ? (filteredData.reduce((sum, m) => sum + (m.ipk || 0), 0) / filteredData.length).toFixed(2)
+      : '0.00',
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-md border-b border-blue-100">
         <div className="px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <CalendarDaysIcon className="h-8 w-8 text-blue-900" />
-              <div>
-                <h1 className="text-2xl font-bold text-blue-900">Data Perangkatan</h1>
-                <p className="text-sm text-blue-600">Statistik dan analisis mahasiswa per angkatan</p>
-              </div>
+          <div className="flex items-center space-x-3">
+            <HomeIcon className="h-8 w-8 text-blue-600" />
+            <div>
+              <h1 className="text-2xl font-bold text-blue-900">Data Mahasiswa Per Angkatan</h1>
+              <p className="text-sm text-blue-600">Analisis data mahasiswa berdasarkan tahun angkatan</p>
             </div>
-            <Link
-              href="/"
-              className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <ArrowLeftIcon className="h-5 w-5 mr-2" />
-              Kembali
-            </Link>
           </div>
         </div>
       </header>
 
-      <main className="px-4 sm:px-6 lg:px-8 py-8 max-w-6xl mx-auto">
-        {view === 'list' ? (
-          <>
-            {/* Daftar Angkatan */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Daftar Angkatan ({angkatanList.length})</h2>
-              
-              {angkatanList.map((angkatan) => (
-                <div
-                  key={angkatan.angkatan}
-                  onClick={() => handleSelectAngkatan(angkatan.angkatan)}
-                  className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all cursor-pointer transform hover:scale-105"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1">ANGKATAN</p>
-                      <h3 className="text-2xl font-bold text-blue-900">{angkatan.angkatan}</h3>
-                      <p className="text-sm text-gray-600 mt-2">
-                        {new Date().getFullYear() - angkatan.angkatan} tahun yang lalu
-                      </p>
-                    </div>
+      <main className="px-4 sm:px-6 lg:px-8 py-8">
+        <Link href="/" className="inline-flex items-center text-blue-600 hover:text-blue-900 mb-6">
+          <ChevronLeftIcon className="h-5 w-5 mr-1" />
+          Kembali ke Dashboard
+        </Link>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-blue-50 p-4 rounded-lg">
-                        <p className="text-xs text-gray-600 uppercase tracking-wide">Total Mahasiswa</p>
-                        <p className="text-2xl font-bold text-blue-900 mt-1">{angkatan.total_mahasiswa}</p>
-                      </div>
-                      <div className="bg-green-50 p-4 rounded-lg">
-                        <p className="text-xs text-gray-600 uppercase tracking-wide">Aktif</p>
-                        <p className="text-2xl font-bold text-green-600 mt-1">{angkatan.mahasiswa_aktif}</p>
-                      </div>
-                      <div className="bg-purple-50 p-4 rounded-lg">
-                        <p className="text-xs text-gray-600 uppercase tracking-wide">Berprestasi</p>
-                        <p className="text-2xl font-bold text-purple-600 mt-1">{angkatan.mahasiswa_berprestasi}</p>
-                      </div>
-                      <div className="bg-red-50 p-4 rounded-lg">
-                        <p className="text-xs text-gray-600 uppercase tracking-wide">Berisiko</p>
-                        <p className="text-2xl font-bold text-red-600 mt-1">{angkatan.mahasiswa_berisiko}</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-orange-50 p-4 rounded-lg">
-                        <p className="text-xs text-gray-600 uppercase tracking-wide">Rata-rata IPK</p>
-                        <p className="text-2xl font-bold text-orange-600 mt-1">{angkatan.rata_rata_ipk.toFixed(2)}</p>
-                      </div>
-                      <div className="bg-yellow-50 p-4 rounded-lg">
-                        <p className="text-xs text-gray-600 uppercase tracking-wide">Rata-rata Kehadiran</p>
-                        <p className="text-2xl font-bold text-yellow-600 mt-1">{angkatan.rata_rata_kehadiran.toFixed(0)}%</p>
-                      </div>
-                      <div className="bg-indigo-50 p-4 rounded-lg col-span-2">
-                        <p className="text-xs text-gray-600 uppercase tracking-wide">Total SKS Diselesaikan</p>
-                        <p className="text-2xl font-bold text-indigo-600 mt-1">{angkatan.total_sks_diselesaikan} SKS</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-                    <div className="flex items-center space-x-2">
-                      <UserGroupIcon className="h-5 w-5 text-gray-400" />
-                      <span className="text-sm text-gray-600">Klik untuk melihat detail mahasiswa angkatan ini</span>
-                    </div>
-                    <ArrowRightIcon className="h-5 w-5 text-blue-600" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Detail Angkatan */}
-            <div>
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Pilih Tahun Angkatan</h3>
+          <div className="grid grid-cols-3 md:grid-cols-7 gap-2 mb-4">
+            {YEARS.map((year) => (
               <button
-                onClick={() => setView('list')}
-                className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors mb-6"
+                key={year}
+                onClick={() => setActiveYear(year)}
+                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+                  activeYear === year
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                <ArrowLeftIcon className="h-5 w-5 mr-2" />
-                Kembali ke Daftar Angkatan
+                {year}
               </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            placeholder="Cari berdasarkan nama atau NIM..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+          />
+        </div>
 
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="bg-blue-100 p-4 rounded-full">
-                    <CalendarDaysIcon className="h-10 w-10 text-blue-900" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Angkatan {selectedAngkatan}</h2>
-                    <p className="text-gray-600">
-                      Total {mahasiswaAngkatan.length} mahasiswa | 
-                      Rata-rata IPK {(mahasiswaAngkatan.reduce((sum, m) => sum + m.ipk, 0) / mahasiswaAngkatan.length).toFixed(2)}
-                    </p>
-                  </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500">
+            <p className="text-sm text-gray-600">Total</p>
+            <p className="text-2xl font-bold text-blue-600">{loading ? '-' : stats.total}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-green-500">
+            <p className="text-sm text-gray-600">Aktif</p>
+            <p className="text-2xl font-bold text-green-600">{loading ? '-' : stats.aktif}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-purple-500">
+            <p className="text-sm text-gray-600">Alumni</p>
+            <p className="text-2xl font-bold text-purple-600">{loading ? '-' : stats.alumni}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-red-500">
+            <p className="text-sm text-gray-600">Tidak Aktif</p>
+            <p className="text-2xl font-bold text-red-600">{loading ? '-' : stats.tidakAktif}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-yellow-500">
+            <p className="text-sm text-gray-600">Berprestasi</p>
+            <p className="text-2xl font-bold text-yellow-600">{loading ? '-' : stats.berprestasi}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-indigo-500">
+            <p className="text-sm text-gray-600">Rata-rata IPK</p>
+            <p className="text-2xl font-bold text-indigo-600">{loading ? '-' : stats.rataIPK}</p>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-lg shadow-md p-6 mb-6">
+          <div className="flex flex-wrap gap-4 justify-between items-center">
+            <p className="text-blue-900 font-semibold">
+              Mahasiswa Angkatan {activeYear}: <span className="text-2xl text-blue-600">{loading ? '-' : filteredData.length.toLocaleString()}</span>
+            </p>
+            {totalPages > 1 && (
+              <p className="text-blue-700">
+                Halaman <span className="font-bold">{currentPage}</span> dari <span className="font-bold">{totalPages}</span>
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-blue-100 border-b border-gray-200">
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">No</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Nama</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">NIM</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">IPK</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">SKS Lulus</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">SKS Diambil</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">MK Lulus</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">MK Diulang</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">SKS MK Diulang</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Status</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Kategori</th>
+                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">Loading data...</td>
+                  </tr>
+                ) : data.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
+                      {search ? 'Tidak ada data yang cocok' : `Tidak ada mahasiswa angkatan ${activeYear}`}
+                    </td>
+                  </tr>
+                ) : (
+                  data.map((mahasiswa, idx) => (
+                    <tr key={mahasiswa.nim} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="px-6 py-4 text-gray-900">{(currentPage - 1) * PER_PAGE + idx + 1}</td>
+                      <td className="px-6 py-4 text-gray-900 font-medium">{mahasiswa.nama}</td>
+                      <td className="px-6 py-4 text-gray-900">{mahasiswa.nim}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          (mahasiswa.ipk || 0) >= 3.5 ? 'bg-green-100 text-green-800' :
+                          (mahasiswa.ipk || 0) >= 3.0 ? 'bg-blue-100 text-blue-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {(mahasiswa.ipk || 0).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-gray-900">{mahasiswa.sks_lulus}</td>
+                      <td className="px-6 py-4 text-gray-900">{mahasiswa.sks_diambil}</td>
+                      <td className="px-6 py-4 text-gray-900">{mahasiswa.matakuliah_lulus}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${mahasiswa.jumlah_mk_diulang > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                          {mahasiswa.jumlah_mk_diulang}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${mahasiswa.sks_mk_diulang > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                          {mahasiswa.sks_mk_diulang}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          mahasiswa.status === 'Aktif' ? 'bg-green-100 text-green-800' :
+                          mahasiswa.status === 'Alumni' ? 'bg-purple-100 text-purple-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {mahasiswa.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          mahasiswa.kategori === 'Berprestasi' ? 'bg-yellow-100 text-yellow-800' :
+                          mahasiswa.kategori === 'Normal' ? 'bg-gray-100 text-gray-800' :
+                          'bg-orange-100 text-orange-800'
+                        }`}>
+                          {mahasiswa.kategori}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Link href={`/detail-mahasiswa?nim=${mahasiswa.nim}`} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Detail</Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <p className="text-sm text-gray-600">
+                  Menampilkan <span className="font-semibold">{(currentPage - 1) * PER_PAGE + 1}</span> - <span className="font-semibold">{Math.min(currentPage * PER_PAGE, filteredData.length)}</span> dari <span className="font-semibold">{filteredData.length.toLocaleString()}</span>
+                </p>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1 || loading} className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <ChevronDoubleLeftIcon className="h-4 w-4" />
+                  </button>
+                  <button onClick={handlePrevPage} disabled={currentPage === 1 || loading} className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <ChevronLeftIcon className="h-4 w-4" />
+                  </button>
+                  {getPageNumbers().map((page) => (
+                    <button key={page} onClick={() => setCurrentPage(page)} disabled={loading} className={`px-3 py-1 rounded-lg border ${page === currentPage ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-300 hover:bg-gray-100'} disabled:opacity-50`}>
+                      {page}
+                    </button>
+                  ))}
+                  <button onClick={handleNextPage} disabled={currentPage === totalPages || loading} className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <ChevronLeftIcon className="h-4 w-4 rotate-180" />
+                  </button>
+                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || loading} className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <ChevronDoubleRightIcon className="h-4 w-4" />
+                  </button>
                 </div>
-              </div>
-
-              {/* Statistics Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div className="bg-white rounded-xl shadow-lg border border-green-200 p-6">
-                  <div className="flex items-center space-x-3">
-                    <CheckCircleIcon className="h-8 w-8 text-green-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Berprestasi</p>
-                      <p className="text-3xl font-bold text-green-600">
-                        {mahasiswaAngkatan.filter(m => m.status_akademik === 'Berprestasi').length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-lg border border-blue-200 p-6">
-                  <div className="flex items-center space-x-3">
-                    <AcademicCapIcon className="h-8 w-8 text-blue-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Normal</p>
-                      <p className="text-3xl font-bold text-blue-600">
-                        {mahasiswaAngkatan.filter(m => m.status_akademik === 'Normal').length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-lg border border-red-200 p-6">
-                  <div className="flex items-center space-x-3">
-                    <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Berisiko</p>
-                      <p className="text-3xl font-bold text-red-600">
-                        {mahasiswaAngkatan.filter(m => m.status_akademik === 'Berisiko').length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-lg border border-purple-200 p-6">
-                  <div className="flex items-center space-x-3">
-                    <UserGroupIcon className="h-8 w-8 text-purple-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Total</p>
-                      <p className="text-3xl font-bold text-purple-600">{mahasiswaAngkatan.length}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* List Mahasiswa */}
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Daftar Mahasiswa</h3>
-              <div className="space-y-3">
-                {mahasiswaAngkatan.map((mahasiswa) => (
-                  <div
-                    key={mahasiswa.nim}
-                    className={`rounded-xl border-2 p-5 ${getStatusColor(mahasiswa.status_akademik)}`}
-                  >
-                    <div className="flex items-start space-x-4">
-                      <div className="flex-shrink-0">
-                        {getStatusIcon(mahasiswa.status_akademik)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="text-lg font-bold text-gray-900">{mahasiswa.nama}</h4>
-                            <p className="text-sm text-gray-600">NIM: {mahasiswa.nim}</p>
-                          </div>
-                          <div className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusTextColor(mahasiswa.status_akademik)}`}>
-                            {mahasiswa.status_akademik}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3">
-                          <div>
-                            <p className="text-xs text-gray-600 uppercase tracking-wide">IPK</p>
-                            <p className="text-lg font-bold text-gray-900">{mahasiswa.ipk.toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-600 uppercase tracking-wide">Kehadiran</p>
-                            <p className="text-lg font-bold text-gray-900">{mahasiswa.kehadiran}%</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-600 uppercase tracking-wide">SKS Lulus</p>
-                            <p className="text-lg font-bold text-gray-900">{mahasiswa.sks_lulus}/{mahasiswa.total_sks_wajib}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-600 uppercase tracking-wide">Semester</p>
-                            <p className="text-lg font-bold text-gray-900">{mahasiswa.semester}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-600 uppercase tracking-wide">MK Mengulang</p>
-                            <p className="text-lg font-bold text-gray-900">{mahasiswa.mk_mengulang}</p>
-                          </div>
-                        </div>
-
-                        {mahasiswa.beasiswa && (
-                          <div className="mt-3 text-sm text-gray-700">
-                            <p><span className="font-semibold">Beasiswa:</span> {mahasiswa.beasiswa}</p>
-                          </div>
-                        )}
-
-                        {mahasiswa.prestasi.length > 0 && (
-                          <div className="mt-3 text-sm text-gray-700">
-                            <p className="font-semibold mb-1">Prestasi:</p>
-                            <ul className="list-disc list-inside">
-                              {mahasiswa.prestasi.map((p, idx) => (
-                                <li key={idx}>{p}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </main>
     </div>
   );

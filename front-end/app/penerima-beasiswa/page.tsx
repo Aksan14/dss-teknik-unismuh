@@ -3,123 +3,177 @@
 import {
   HomeIcon,
   ChevronLeftIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 
 interface Mahasiswa {
-  id: number;
   nim: string;
   nama: string;
-  jurusan: string;
+  ipk: number;
   angkatan: number;
-  kipk: number;
-  beasiswa: string;
-  beasiswa_luar: string;
+  sks_total: number;
+  sks_diambil: number;
+  sks_lulus: number;
+  matakuliah_lulus: number;
+  jumlah_mk_diulang: number;
+  sks_mk_diulang: number;
+  status: string;
+  kategori: string;
 }
 
-type FilterType = 'kipk' | 'beasiswa_luar';
+const PER_PAGE = 30;
 
 export default function PenerimaBeasiswa() {
   const [data, setData] = useState<Mahasiswa[]>([]);
+  const [allData, setAllData] = useState<Mahasiswa[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterType>('kipk');
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filterIPK, setFilterIPK] = useState<'all' | '3.5' | '3.0'>('3.0');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch('http://localhost:8080/mahasiswa/beasiswa');
-        const result = await response.json();
-        setData(result || []);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setData([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8080/api/v1/mahasiswa/berprestasi');
+      const result = await response.json();
+      setAllData(result.data || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setAllData([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const filteredData = data.filter(mahasiswa => {
-    const matchesSearch = mahasiswa.nama.toLowerCase().includes(search.toLowerCase()) ||
-      mahasiswa.nim.includes(search);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const filteredData = useMemo(() => allData.filter(m => {
+    const matchesSearch = !search || 
+      m.nama.toLowerCase().includes(search.toLowerCase()) ||
+      m.nim.includes(search);
     
-    if (filter === 'kipk') {
-      return matchesSearch && mahasiswa.kipk > 0;
-    } else {
-      return matchesSearch && mahasiswa.beasiswa_luar && mahasiswa.beasiswa_luar !== 'Tidak Ada';
+    let matchesIPK = true;
+    if (filterIPK === '3.5') {
+      matchesIPK = (m.ipk || 0) >= 3.5;
+    } else if (filterIPK === '3.0') {
+      matchesIPK = (m.ipk || 0) >= 3.0;
     }
-  });
+    
+    return matchesSearch && matchesIPK;
+  }), [search, allData, filterIPK]);
+
+  const totalPages = Math.ceil(filteredData.length / PER_PAGE);
+
+  useEffect(() => {
+    const start = (currentPage - 1) * PER_PAGE;
+    const end = start + PER_PAGE;
+    setData(filteredData.slice(start, end));
+  }, [filteredData, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterIPK]);
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const getPageNumbers = () => {
+    const pages: number[] = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-md border-b border-pink-100">
         <div className="px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center space-x-3">
-            <HomeIcon className="h-8 w-8 text-pink-900" />
+            <HomeIcon className="h-8 w-8 text-pink-600" />
             <div>
-              <h1 className="text-2xl font-bold text-pink-900">Penerima Beasiswa</h1>
-              <p className="text-sm text-pink-600">Data mahasiswa penerima beasiswa</p>
+              <h1 className="text-2xl font-bold text-pink-900">Kandidat Penerima Beasiswa</h1>
+              <p className="text-sm text-pink-600">Mahasiswa dengan IPK tinggi yang berpotensi menerima beasiswa</p>
             </div>
           </div>
         </div>
       </header>
 
       <main className="px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back Button */}
         <Link href="/" className="inline-flex items-center text-blue-600 hover:text-blue-900 mb-6">
           <ChevronLeftIcon className="h-5 w-5 mr-1" />
           Kembali ke Dashboard
         </Link>
 
-        {/* Filter Tabs */}
-        <div className="bg-white rounded-lg shadow-md mb-8">
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => setFilter('kipk')}
-              className={`px-6 py-4 font-semibold text-sm transition-colors ${
-                filter === 'kipk'
-                  ? 'border-b-2 border-pink-600 text-pink-600 bg-pink-50'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              KIPK (Kompetisi IP Kelas)
-            </button>
-            <button
-              onClick={() => setFilter('beasiswa_luar')}
-              className={`px-6 py-4 font-semibold text-sm transition-colors ${
-                filter === 'beasiswa_luar'
-                  ? 'border-b-2 border-pink-600 text-pink-600 bg-pink-50'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Beasiswa Luar
-            </button>
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFilterIPK('3.0')}
+                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+                  filterIPK === '3.0'
+                    ? 'bg-pink-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                IPK ≥ 3.0
+              </button>
+              <button
+                onClick={() => setFilterIPK('3.5')}
+                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+                  filterIPK === '3.5'
+                    ? 'bg-pink-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                IPK ≥ 3.5 (Cum Laude)
+              </button>
+              <button
+                onClick={() => setFilterIPK('all')}
+                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+                  filterIPK === 'all'
+                    ? 'bg-pink-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Semua Berprestasi
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="Cari berdasarkan nama atau NIM..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-transparent"
+            />
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <input
-            type="text"
-            placeholder="Cari berdasarkan nama atau NIM..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-transparent"
-          />
+        <div className="bg-pink-50 border border-pink-200 rounded-lg shadow-md p-6 mb-6">
+          <div className="flex flex-wrap gap-4 justify-between items-center">
+            <p className="text-pink-900 font-semibold">
+              Kandidat Beasiswa: <span className="text-2xl text-pink-600">{loading ? '-' : filteredData.length.toLocaleString()}</span>
+            </p>
+            {totalPages > 1 && (
+              <p className="text-pink-700">
+                Halaman <span className="font-bold">{currentPage}</span> dari <span className="font-bold">{totalPages}</span>
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Stats Card */}
-        <div className="bg-pink-50 border border-pink-200 rounded-lg shadow-md p-6 mb-8">
-          <p className="text-pink-900 font-semibold">
-            Total: <span className="text-2xl text-pink-600">{loading ? '-' : filteredData.length}</span> mahasiswa
-          </p>
-        </div>
-
-        {/* Table */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -128,44 +182,72 @@ export default function PenerimaBeasiswa() {
                   <th className="px-6 py-4 text-left font-semibold text-pink-900">No</th>
                   <th className="px-6 py-4 text-left font-semibold text-pink-900">Nama</th>
                   <th className="px-6 py-4 text-left font-semibold text-pink-900">NIM</th>
-                  <th className="px-6 py-4 text-left font-semibold text-pink-900">Jurusan</th>
                   <th className="px-6 py-4 text-left font-semibold text-pink-900">Angkatan</th>
-                  {filter === 'kipk' ? (
-                    <th className="px-6 py-4 text-left font-semibold text-pink-900">KIPK</th>
-                  ) : (
-                    <th className="px-6 py-4 text-left font-semibold text-pink-900">Beasiswa Luar</th>
-                  )}
+                  <th className="px-6 py-4 text-left font-semibold text-pink-900">IPK</th>
+                  <th className="px-6 py-4 text-left font-semibold text-pink-900">SKS Lulus</th>
+                  <th className="px-6 py-4 text-left font-semibold text-pink-900">SKS Diambil</th>
+                  <th className="px-6 py-4 text-left font-semibold text-pink-900">MK Lulus</th>
+                  <th className="px-6 py-4 text-left font-semibold text-pink-900">MK Diulang</th>
+                  <th className="px-6 py-4 text-left font-semibold text-pink-900">SKS MK Diulang</th>
+                  <th className="px-6 py-4 text-left font-semibold text-pink-900">Status</th>
+                  <th className="px-6 py-4 text-left font-semibold text-pink-900">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                      Loading data...
-                    </td>
+                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">Loading data...</td>
                   </tr>
-                ) : filteredData.length === 0 ? (
+                ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                      {search ? 'Tidak ada data yang cocok' : 'Tidak ada mahasiswa'}
+                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
+                      {search ? 'Tidak ada data yang cocok' : 'Tidak ada kandidat beasiswa'}
                     </td>
                   </tr>
                 ) : (
-                  filteredData.map((mahasiswa, idx) => (
-                    <tr key={mahasiswa.id} className="border-b border-gray-200 hover:bg-gray-50">
-                      <td className="px-6 py-4 text-gray-900">{idx + 1}</td>
+                  data.map((mahasiswa, idx) => (
+                    <tr key={mahasiswa.nim} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="px-6 py-4 text-gray-900">{(currentPage - 1) * PER_PAGE + idx + 1}</td>
                       <td className="px-6 py-4 text-gray-900 font-medium">{mahasiswa.nama}</td>
                       <td className="px-6 py-4 text-gray-900">{mahasiswa.nim}</td>
                       <td className="px-6 py-4">
                         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                          {mahasiswa.jurusan}
+                          {mahasiswa.angkatan}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-gray-900">{mahasiswa.angkatan}</td>
                       <td className="px-6 py-4">
-                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
-                          {filter === 'kipk' ? mahasiswa.kipk.toFixed(2) : mahasiswa.beasiswa_luar}
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          (mahasiswa.ipk || 0) >= 3.5 ? 'bg-green-100 text-green-800' :
+                          (mahasiswa.ipk || 0) >= 3.0 ? 'bg-blue-100 text-blue-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {(mahasiswa.ipk || 0).toFixed(2)}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-gray-900">{mahasiswa.sks_lulus}</td>
+                      <td className="px-6 py-4 text-gray-900">{mahasiswa.sks_diambil}</td>
+                      <td className="px-6 py-4 text-gray-900">{mahasiswa.matakuliah_lulus}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${mahasiswa.jumlah_mk_diulang > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                          {mahasiswa.jumlah_mk_diulang}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${mahasiswa.sks_mk_diulang > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                          {mahasiswa.sks_mk_diulang}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          mahasiswa.status === 'Aktif' ? 'bg-green-100 text-green-800' :
+                          mahasiswa.status === 'Alumni' ? 'bg-purple-100 text-purple-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {mahasiswa.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Link href={`/detail-mahasiswa?nim=${mahasiswa.nim}`} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Detail</Link>
                       </td>
                     </tr>
                   ))
@@ -174,12 +256,32 @@ export default function PenerimaBeasiswa() {
             </table>
           </div>
 
-          {/* Summary */}
-          {filteredData.length > 0 && (
+          {totalPages > 1 && (
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                Menampilkan: <span className="font-semibold text-gray-900">{filteredData.length}</span> dari {data.length} mahasiswa
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <p className="text-sm text-gray-600">
+                  Menampilkan <span className="font-semibold">{(currentPage - 1) * PER_PAGE + 1}</span> - <span className="font-semibold">{Math.min(currentPage * PER_PAGE, filteredData.length)}</span> dari <span className="font-semibold">{filteredData.length.toLocaleString()}</span>
+                </p>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1 || loading} className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <ChevronDoubleLeftIcon className="h-4 w-4" />
+                  </button>
+                  <button onClick={handlePrevPage} disabled={currentPage === 1 || loading} className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <ChevronLeftIcon className="h-4 w-4" />
+                  </button>
+                  {getPageNumbers().map((page) => (
+                    <button key={page} onClick={() => setCurrentPage(page)} disabled={loading} className={`px-3 py-1 rounded-lg border ${page === currentPage ? 'bg-pink-500 text-white border-pink-500' : 'border-gray-300 hover:bg-gray-100'} disabled:opacity-50`}>
+                      {page}
+                    </button>
+                  ))}
+                  <button onClick={handleNextPage} disabled={currentPage === totalPages || loading} className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <ChevronLeftIcon className="h-4 w-4 rotate-180" />
+                  </button>
+                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || loading} className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <ChevronDoubleRightIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
