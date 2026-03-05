@@ -1,14 +1,14 @@
 ﻿'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { MagnifyingGlassIcon, ExclamationTriangleIcon, StarIcon, PhoneIcon, ChatBubbleLeftRightIcon, XMarkIcon, ChevronLeftIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, CheckIcon, ChevronLeftIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PhoneIcon, ShieldExclamationIcon, StarIcon, UsersIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface Mahasiswa {
   nim: string; nama: string; ipk: number; angkatan: number;
   sks_total: number; sks_diambil: number; sks_lulus: number;
   matakuliah_lulus: number; jumlah_mk_diulang: number; sks_mk_diulang: number;
-  status: string; kategori: string;
+  status: string; kategori: string; jurusan: string;
 }
 
 interface DetailMahasiswa {
@@ -131,6 +131,12 @@ export default function PeninjauanMahasiswa() {
   const [modalLoading, setModalLoading] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<DetailMahasiswa | null>(null);
   const [selectedMhs, setSelectedMhs] = useState<Mahasiswa | null>(null);
+  // Bulk contact states
+  const [checkedNims, setCheckedNims] = useState<Set<string>>(new Set());
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkContacts, setBulkContacts] = useState<Array<{ nim: string; nama: string; angkatan: number; masalah: string[]; kontakList: Array<{ label: string; nama: string | undefined; hp: string; pesan: string }> }>>([]);
+  const [bulkSentNims, setBulkSentNims] = useState<Set<string>>(new Set());
   const PER_PAGE = 20;
 
   const fetchData = useCallback(async () => {
@@ -156,7 +162,7 @@ export default function PeninjauanMahasiswa() {
 
   const bermasalah = useMemo(() => {
     return allData.filter(m => {
-      if (m.status === 'Alumni') return false;
+      if (m.status === 'Alumni' || m.status === 'Tidak Aktif') return false;
       return getMasalah(m).length > 0;
     }).sort((a, b) => getMasalah(b).length - getMasalah(a).length || a.ipk - b.ipk);
   }, [allData]);
@@ -185,8 +191,97 @@ export default function PeninjauanMahasiswa() {
     return filteredList.slice(start, start + PER_PAGE);
   }, [filteredList, currentPage, PER_PAGE]);
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, selectedAngkatan, activeTab]);
+  useEffect(() => { setCurrentPage(1); setCheckedNims(new Set()); }, [searchTerm, selectedAngkatan, activeTab]);
   const uniqueAngkatan = useMemo(() => [...new Set(allData.map(m => m.angkatan))].sort((a, b) => b - a), [allData]);
+
+  // Bulk selection handlers
+  const isAllPageChecked = paginatedData.length > 0 && paginatedData.every(m => checkedNims.has(m.nim));
+  const isAllFilteredChecked = filteredList.length > 0 && filteredList.every(m => checkedNims.has(m.nim));
+
+  const toggleCheck = (nim: string) => {
+    setCheckedNims(prev => {
+      const next = new Set(prev);
+      if (next.has(nim)) next.delete(nim); else next.add(nim);
+      return next;
+    });
+  };
+
+  const toggleAllPage = () => {
+    setCheckedNims(prev => {
+      const next = new Set(prev);
+      if (isAllPageChecked) {
+        paginatedData.forEach(m => next.delete(m.nim));
+      } else {
+        paginatedData.forEach(m => next.add(m.nim));
+      }
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    setCheckedNims(new Set(filteredList.map(m => m.nim)));
+  };
+
+  const clearSelection = () => setCheckedNims(new Set());
+
+  // Bulk contact handler
+  const handleBulkContact = async () => {
+    const selectedList = filteredList.filter(m => checkedNims.has(m.nim));
+    if (selectedList.length === 0) return;
+    setBulkModalOpen(true);
+    setBulkLoading(true);
+    setBulkContacts([]);
+    setBulkSentNims(new Set());
+
+    const results: typeof bulkContacts = [];
+    // Fetch details in batches of 5 to avoid overloading
+    for (let i = 0; i < selectedList.length; i += 5) {
+      const batch = selectedList.slice(i, i + 5);
+      const promises = batch.map(async (m) => {
+        try {
+          const res = await fetch(`http://localhost:8080/api/v1/mahasiswa/${m.nim}/detail`);
+          if (!res.ok) return null;
+          const detail: DetailMahasiswa = await res.json();
+          const pesan = activeTab === 'bermasalah' ? generatePesanMasalah(detail) : generatePesanPrestasi(detail);
+          const kontakList = [
+            { label: 'Ayah', nama: detail.ayah?.nama, hp: detail.ayah?.hp || '', pesan },
+            { label: 'Ibu', nama: detail.ibu?.nama, hp: detail.ibu?.hp || '', pesan },
+            { label: 'Wali', nama: detail.wali?.nama, hp: detail.wali?.hp || '', pesan },
+            { label: 'Mahasiswa', nama: detail.nama, hp: detail.hp || '', pesan },
+          ].filter(k => k.hp && k.hp.trim() !== '');
+          return {
+            nim: m.nim,
+            nama: m.nama,
+            angkatan: m.angkatan,
+            masalah: activeTab === 'bermasalah' ? getMasalah(m) : getPrestasi(m),
+            kontakList,
+          };
+        } catch { return null; }
+      });
+      const batchResults = await Promise.all(promises);
+      batchResults.forEach(r => { if (r) results.push(r); });
+      setBulkContacts([...results]);
+    }
+    setBulkLoading(false);
+  };
+
+  const handleBulkWA = (hp: string, pesan: string, nim: string) => {
+    const formatted = formatPhone(hp);
+    const url = `https://wa.me/${formatted}?text=${encodeURIComponent(pesan)}`;
+    window.open(url, '_blank');
+    setBulkSentNims(prev => new Set(prev).add(nim));
+  };
+
+  const handleSendAllWA = () => {
+    bulkContacts.forEach((contact, idx) => {
+      if (contact.kontakList.length > 0) {
+        const primaryKontak = contact.kontakList.find(k => k.label === 'Ayah' || k.label === 'Ibu') || contact.kontakList[0];
+        setTimeout(() => {
+          handleBulkWA(primaryKontak.hp, primaryKontak.pesan, contact.nim);
+        }, idx * 800); // Delay 800ms between opens to avoid browser blocking
+      }
+    });
+  };
 
   const handleTindakLanjut = async (m: Mahasiswa) => {
     setSelectedMhs(m);
@@ -313,16 +408,59 @@ export default function PeninjauanMahasiswa() {
           <p className="mt-3 text-sm text-gray-500">Menampilkan <span className="font-bold text-blue-900">{filteredList.length}</span> mahasiswa</p>
         </div>
 
+        {/* Bulk Contact Banner */}
+        <div className={`rounded-xl border-2 border-dashed p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 ${activeTab === 'bermasalah' ? 'border-orange-300 bg-linear-to-r from-orange-50 via-amber-50 to-yellow-50' : 'border-teal-300 bg-linear-to-r from-teal-50 via-emerald-50 to-green-50'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center animate-pulse ${activeTab === 'bermasalah' ? 'bg-orange-200' : 'bg-teal-200'}`}>
+              <ChatBubbleLeftRightIcon className={`h-6 w-6 ${activeTab === 'bermasalah' ? 'text-orange-700' : 'text-teal-700'}`} />
+            </div>
+            <div>
+              <p className={`font-bold text-sm ${activeTab === 'bermasalah' ? 'text-orange-800' : 'text-teal-800'}`}>
+                Hubungi Banyak Mahasiswa Sekaligus!
+              </p>
+              <p className={`text-xs ${activeTab === 'bermasalah' ? 'text-orange-600' : 'text-teal-600'}`}>
+                Centang mahasiswa di tabel lalu klik tombol &quot;Hubungi Semua via WA&quot; untuk mengirim pesan WhatsApp otomatis ke mahasiswa & orang tua.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {checkedNims.size > 0 ? (
+              <button
+                onClick={handleBulkContact}
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-2 shadow-lg transition-all hover:scale-105 ${activeTab === 'bermasalah' ? 'bg-linear-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600' : 'bg-linear-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600'}`}
+              >
+                <ChatBubbleLeftRightIcon className="h-5 w-5" />
+                Hubungi {checkedNims.size} Mahasiswa
+              </button>
+            ) : (
+              <button
+                onClick={selectAllFiltered}
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-2 shadow-lg transition-all hover:scale-105 ${activeTab === 'bermasalah' ? 'bg-linear-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600' : 'bg-linear-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600'}`}
+              >
+                <UsersIcon className="h-5 w-5" />
+                Pilih Semua ({filteredList.length}) & Hubungi
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Table */}
         <div className="bg-white rounded-xl shadow-md border border-blue-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className={`border-b ${activeTab === 'bermasalah' ? 'bg-red-50' : 'bg-green-50'}`}>
+                  <th className="px-3 py-3 text-center w-14">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <input type="checkbox" checked={isAllPageChecked} onChange={toggleAllPage} className="h-5 w-5 rounded border-2 border-blue-400 text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600" />
+                      <span className="text-[10px] text-blue-600 font-semibold leading-tight">Pilih</span>
+                    </div>
+                  </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-800">No</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-800">Nama</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-800">NIM</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-800">Angkatan</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-800">Jurusan</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-800">IPK</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-800">MK Diulang</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-800">SKS MK Diulang</th>
@@ -332,16 +470,21 @@ export default function PeninjauanMahasiswa() {
               </thead>
               <tbody>
                 {paginatedData.length === 0 ? (
-                  <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-500">Tidak ada data</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-500">Tidak ada data</td></tr>
                 ) : (
                   paginatedData.map((m, idx) => {
                     const issues = activeTab === 'bermasalah' ? getMasalah(m) : getPrestasi(m);
+                    const isChecked = checkedNims.has(m.nim);
                     return (
-                      <tr key={m.nim} className="border-b border-gray-200 hover:bg-gray-50">
+                      <tr key={m.nim} className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${isChecked ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : ''}`}>
+                        <td className="px-3 py-3 text-center">
+                          <input type="checkbox" checked={isChecked} onChange={() => toggleCheck(m.nim)} className="h-5 w-5 rounded border-2 border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600" />
+                        </td>
                         <td className="px-4 py-3 text-gray-900">{(currentPage - 1) * PER_PAGE + idx + 1}</td>
                         <td className="px-4 py-3 font-medium text-gray-900">{m.nama}</td>
                         <td className="px-4 py-3 text-gray-700">{m.nim}</td>
                         <td className="px-4 py-3"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">{m.angkatan}</span></td>
+                        <td className="px-4 py-3 text-gray-700 text-xs">{m.jurusan}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 rounded-full text-xs font-semibold ${(m.ipk||0) >= 3.5 ? 'bg-green-100 text-green-800' : (m.ipk||0) >= 2.5 ? 'bg-blue-100 text-blue-800' : (m.ipk||0) >= 2.0 ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'}`}>
                             {(m.ipk||0).toFixed(2)}
@@ -373,6 +516,39 @@ export default function PeninjauanMahasiswa() {
             </table>
           </div>
         </div>
+
+        {/* Floating Selection Bar */}
+        {checkedNims.size > 0 && (
+          <div className="fixed bottom-20 md:bottom-6 left-1/2 transform -translate-x-1/2 z-40 animate-bounce-once">
+            <div className="bg-linear-to-r from-blue-800 to-blue-950 text-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.3)] px-6 py-4 flex items-center gap-4 ring-2 ring-blue-400/50">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                  <UsersIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="text-base font-bold block leading-tight">{checkedNims.size} mahasiswa dipilih</span>
+                  <span className="text-xs text-blue-300">Siap dihubungi via WhatsApp</span>
+                </div>
+              </div>
+              <div className="h-8 w-px bg-blue-600"></div>
+              {!isAllFilteredChecked && (
+                <button onClick={selectAllFiltered} className="text-xs bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded-lg transition-colors">
+                  Pilih semua ({filteredList.length})
+                </button>
+              )}
+              <button onClick={clearSelection} className="text-xs bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded-lg transition-colors">
+                Batal
+              </button>
+              <button
+                onClick={handleBulkContact}
+                className="bg-linear-to-r from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg hover:scale-105"
+              >
+                <ChatBubbleLeftRightIcon className="h-5 w-5" />
+                Hubungi Semua via WA
+              </button>
+            </div>
+          </div>
+        )}
 
         {totalPages > 1 && (
           <div className="flex justify-center items-center gap-2 mt-6">
@@ -451,6 +627,110 @@ export default function PeninjauanMahasiswa() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Bulk Contact Modal */}
+      {bulkModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className={`px-6 py-4 border-b flex items-center justify-between shrink-0 ${activeTab === 'bermasalah' ? 'bg-red-50' : 'bg-green-50'}`}>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <UsersIcon className="h-5 w-5" />
+                  Hubungi {checkedNims.size} Mahasiswa Sekaligus
+                </h2>
+                <p className="text-sm text-gray-600">Kirim pesan WhatsApp ke orang tua/wali mahasiswa {activeTab === 'bermasalah' ? 'bermasalah' : 'berprestasi'}</p>
+              </div>
+              <button onClick={() => setBulkModalOpen(false)} className="text-gray-500 hover:text-gray-900">
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+
+            {bulkLoading && (
+              <div className="px-6 py-3 bg-blue-50 border-b flex items-center gap-3 shrink-0">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-900"></div>
+                <p className="text-sm text-blue-800">Memuat data kontak... ({bulkContacts.length}/{checkedNims.size})</p>
+              </div>
+            )}
+
+            {!bulkLoading && bulkContacts.length > 0 && (
+              <div className="px-6 py-3 bg-green-50 border-b flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <CheckIcon className="h-4 w-4 text-green-600" />
+                  <p className="text-sm text-green-800">
+                    <span className="font-bold">{bulkContacts.length}</span> data kontak berhasil dimuat
+                    {bulkSentNims.size > 0 && <span className="ml-2">• <span className="font-bold text-blue-700">{bulkSentNims.size}</span> sudah dikirim</span>}
+                  </p>
+                </div>
+                <button
+                  onClick={handleSendAllWA}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
+                >
+                  <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                  Kirim Semua WA Sekaligus
+                </button>
+              </div>
+            )}
+
+            <div className="overflow-y-auto flex-1 p-6">
+              {bulkContacts.length === 0 && !bulkLoading ? (
+                <div className="text-center py-12 text-gray-500">Tidak ada data kontak yang ditemukan</div>
+              ) : (
+                <div className="space-y-4">
+                  {bulkContacts.map((contact, idx) => (
+                    <div key={contact.nim} className={`rounded-xl border p-4 ${bulkSentNims.has(contact.nim) ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="w-7 h-7 rounded-full bg-blue-900 text-white text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                          <div>
+                            <p className="font-semibold text-gray-900 text-sm">{contact.nama}</p>
+                            <p className="text-xs text-gray-500">{contact.nim} • Angkatan {contact.angkatan}</p>
+                          </div>
+                        </div>
+                        {bulkSentNims.has(contact.nim) && (
+                          <span className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                            <CheckIcon className="h-3 w-3" />Terkirim
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {contact.masalah.map((m, i) => (
+                          <span key={i} className={`px-2 py-0.5 rounded text-xs font-medium ${activeTab === 'bermasalah' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{m}</span>
+                        ))}
+                      </div>
+                      {contact.kontakList.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">Tidak ada nomor kontak</p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {contact.kontakList.map((k, i) => (
+                            <div key={i} className="flex items-center justify-between bg-white rounded-lg p-2.5 border border-gray-100">
+                              <div className="min-w-0">
+                                <p className="text-[10px] text-gray-400 uppercase">{k.label}</p>
+                                <p className="text-xs font-medium text-gray-900 truncate">{k.nama || '-'}</p>
+                                <p className="text-xs text-blue-600">{k.hp}</p>
+                              </div>
+                              <button
+                                onClick={() => handleBulkWA(k.hp, k.pesan, contact.nim)}
+                                className="bg-green-500 hover:bg-green-600 text-white p-1.5 rounded-lg shrink-0 ml-2"
+                                title={`WhatsApp ${k.label}`}
+                              >
+                                <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t bg-gray-50 shrink-0 flex items-center justify-between">
+              <p className="text-xs text-gray-500">Pesan otomatis dikirim via WhatsApp ke kontak orang tua/wali</p>
+              <button onClick={() => setBulkModalOpen(false)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium">Tutup</button>
+            </div>
           </div>
         </div>
       )}

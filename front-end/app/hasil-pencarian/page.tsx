@@ -1,9 +1,9 @@
 ﻿'use client';
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
-import { MagnifyingGlassIcon, ChevronLeftIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 interface Mahasiswa {
   nim: string;
@@ -18,6 +18,8 @@ interface Mahasiswa {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
+  jurusan: string;
+  jurusan: string;
 }
 
 const PER_PAGE = 30;
@@ -107,6 +109,7 @@ function HasilPencarian() {
                     <th className="px-4 py-3 text-left font-semibold text-blue-900">Nama</th>
                     <th className="px-4 py-3 text-left font-semibold text-blue-900">NIM</th>
                     <th className="px-4 py-3 text-left font-semibold text-blue-900">Angkatan</th>
+                    <th className="px-4 py-3 text-left font-semibold text-blue-900">Jurusan</th>
                     <th className="px-4 py-3 text-left font-semibold text-blue-900">IPK</th>
                     <th className="px-4 py-3 text-left font-semibold text-blue-900">SKS Lulus</th>
                     <th className="px-4 py-3 text-left font-semibold text-blue-900">SKS Diambil</th>
@@ -124,6 +127,7 @@ function HasilPencarian() {
                       <td className="px-4 py-3 font-medium">{m.nama}</td>
                       <td className="px-4 py-3">{m.nim}</td>
                       <td className="px-4 py-3"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">{m.angkatan}</span></td>
+                      <td className="px-4 py-3 text-xs">{m.jurusan}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${(m.ipk||0) >= 3.5 ? 'bg-green-100 text-green-800' : (m.ipk||0) >= 3.0 ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'}`}>{(m.ipk||0).toFixed(2)}</span>
                       </td>

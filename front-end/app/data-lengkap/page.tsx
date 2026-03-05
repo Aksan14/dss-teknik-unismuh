@@ -1,13 +1,13 @@
 'use client';
 
 import {
-  HomeIcon,
-  ChevronLeftIcon,
-  ChevronDoubleLeftIcon,
-  ChevronDoubleRightIcon,
+    ChevronDoubleLeftIcon,
+    ChevronDoubleRightIcon,
+    ChevronLeftIcon,
+    HomeIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface Mahasiswa {
   nim: string;
@@ -22,6 +22,7 @@ interface Mahasiswa {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
+  jurusan: string;
 }
 
 const PER_PAGE = 30;
@@ -34,8 +35,13 @@ export default function DataLengkap() {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchResults, setSearchResults] = useState<Mahasiswa[]>([]);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const totalPages = Math.ceil(totalData / PER_PAGE);
+  const totalPages = isSearchMode
+    ? Math.ceil(searchResults.length / PER_PAGE)
+    : Math.ceil(totalData / PER_PAGE);
 
   const fetchData = useCallback(async (page: number, angkatan: number | null) => {
     setLoading(true);
@@ -67,22 +73,63 @@ export default function DataLengkap() {
     }
   }, []);
 
+  // Search across ALL data via backend API
+  const fetchSearchResults = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setIsSearchMode(false);
+      setSearchResults([]);
+      return;
+    }
+    setLoading(true);
+    setIsSearchMode(true);
+    try {
+      const response = await fetch(`http://localhost:8080/api/v1/mahasiswa/search?q=${encodeURIComponent(query)}`);
+      const result = await response.json();
+      const results = result.data || result || [];
+      setSearchResults(Array.isArray(results) ? results : []);
+    } catch (error) {
+      console.error('Error searching:', error);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    fetchData(currentPage, selectedAngkatan);
-  }, [currentPage, selectedAngkatan, fetchData]);
+    if (!isSearchMode) {
+      fetchData(currentPage, selectedAngkatan);
+    }
+  }, [currentPage, selectedAngkatan, fetchData, isSearchMode]);
 
   // Reset to page 1 when angkatan changes
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedAngkatan]);
 
-  // Filter data by search (client-side for current page)
-  const filteredData = search
-    ? data.filter(m => 
-        m.nama.toLowerCase().includes(search.toLowerCase()) ||
-        m.nim.includes(search)
-      )
+  // Debounced search: calls backend API after user stops typing
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setCurrentPage(1);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (!value.trim()) {
+      setIsSearchMode(false);
+      setSearchResults([]);
+      return;
+    }
+    searchTimeout.current = setTimeout(() => {
+      fetchSearchResults(value);
+    }, 400);
+  };
+
+  // In search mode, paginate search results client-side; otherwise show server-paginated data
+  const displayData = isSearchMode
+    ? searchResults.filter(m => !selectedAngkatan || m.angkatan === selectedAngkatan)
+        .slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE)
     : data;
+  
+  const displayTotal = isSearchMode
+    ? searchResults.filter(m => !selectedAngkatan || m.angkatan === selectedAngkatan).length
+    : totalData;
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
@@ -142,12 +189,12 @@ export default function DataLengkap() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Cari Mahasiswa (halaman ini)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cari Mahasiswa (semua data)</label>
               <input
                 type="text"
                 placeholder="Cari berdasarkan nama atau NIM..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
               />
             </div>
@@ -171,7 +218,7 @@ export default function DataLengkap() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg shadow-md p-6 mb-6">
           <div className="flex flex-wrap gap-4 justify-between items-center">
             <p className="text-blue-900 font-semibold">
-              Total Mahasiswa: <span className="text-2xl text-blue-600">{loading ? '-' : totalData.toLocaleString()}</span>
+              Total Mahasiswa: <span className="text-2xl text-blue-600">{loading ? '-' : displayTotal.toLocaleString()}</span>
             </p>
             <p className="text-blue-700">
               Halaman <span className="font-bold">{currentPage}</span> dari <span className="font-bold">{totalPages || 1}</span>
@@ -189,6 +236,7 @@ export default function DataLengkap() {
                   <th className="px-6 py-4 text-left font-semibold text-gray-700">Nama</th>
                   <th className="px-6 py-4 text-left font-semibold text-gray-700">NIM</th>
                   <th className="px-6 py-4 text-left font-semibold text-gray-700">Angkatan</th>
+                  <th className="px-6 py-4 text-left font-semibold text-gray-700">Jurusan</th>
                   <th className="px-6 py-4 text-left font-semibold text-gray-700">IPK</th>
                   <th className="px-6 py-4 text-left font-semibold text-gray-700">SKS Lulus</th>
                   <th className="px-6 py-4 text-left font-semibold text-gray-700">SKS Diambil</th>
@@ -203,18 +251,18 @@ export default function DataLengkap() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={14} className="px-6 py-8 text-center text-gray-500">
                       Loading data...
                     </td>
                   </tr>
-                ) : filteredData.length === 0 ? (
+                ) : displayData.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={14} className="px-6 py-8 text-center text-gray-500">
                       {search ? 'Tidak ada data yang cocok' : 'Tidak ada data mahasiswa'}
                     </td>
                   </tr>
                 ) : (
-                  filteredData.map((mahasiswa, idx) => (
+                  displayData.map((mahasiswa, idx) => (
                     <tr key={mahasiswa.nim} className="border-b border-gray-200 hover:bg-gray-50">
                       <td className="px-6 py-4 text-gray-900">{(currentPage - 1) * PER_PAGE + idx + 1}</td>
                       <td className="px-6 py-4 text-gray-900 font-medium">{mahasiswa.nama}</td>
@@ -224,6 +272,7 @@ export default function DataLengkap() {
                           {mahasiswa.angkatan}
                         </span>
                       </td>
+                      <td className="px-6 py-4 text-gray-900 text-xs">{mahasiswa.jurusan}</td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                           mahasiswa.ipk >= 3.5 ? 'bg-green-100 text-green-800' :
@@ -276,11 +325,11 @@ export default function DataLengkap() {
           </div>
 
           {/* Pagination */}
-          {!selectedAngkatan && totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <p className="text-sm text-gray-600">
-                  Menampilkan <span className="font-semibold">{(currentPage - 1) * PER_PAGE + 1}</span> - <span className="font-semibold">{Math.min(currentPage * PER_PAGE, totalData)}</span> dari <span className="font-semibold">{totalData.toLocaleString()}</span> mahasiswa
+                  Menampilkan <span className="font-semibold">{(currentPage - 1) * PER_PAGE + 1}</span> - <span className="font-semibold">{Math.min(currentPage * PER_PAGE, displayTotal)}</span> dari <span className="font-semibold">{displayTotal.toLocaleString()}</span> mahasiswa
                 </p>
                 
                 <div className="flex items-center gap-1">
@@ -345,10 +394,10 @@ export default function DataLengkap() {
           )}
 
           {/* Summary for filtered angkatan */}
-          {selectedAngkatan && filteredData.length > 0 && (
+          {selectedAngkatan && displayData.length > 0 && (
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
               <p className="text-sm text-gray-600">
-                Menampilkan: <span className="font-semibold text-gray-900">{filteredData.length}</span> mahasiswa angkatan {selectedAngkatan}
+                Menampilkan: <span className="font-semibold text-gray-900">{displayTotal}</span> mahasiswa angkatan {selectedAngkatan}
               </p>
             </div>
           )}

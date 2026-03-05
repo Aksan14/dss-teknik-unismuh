@@ -2,7 +2,7 @@
 
 ## Struktur Proyek
 
-Frontend telah diorganisir dengan pemisahan fitur utama dari menu utama dashboard:
+Frontend menggunakan navigasi sidebar dengan menu accordion "Data Mahasiswa" yang menampilkan 7 sub-menu langsung tanpa halaman perantara.
 
 ```
 front-end/
@@ -14,142 +14,54 @@ front-end/
 │   ├── cari-mahasiswa/
 │   │   └── page.tsx                    # Menu: Cari Mahasiswa
 │   ├── analisis-search/
-│   │   └── page.tsx                    # Menu: Pencarian & Analisis
-│   ├── analisis-mahasiswa/
-│   │   └── page.tsx                    # Menu: Analisis Status
-│   ├── biodata/
-│   │   └── page.tsx
-│   ├── biodata-mahasiswa/
-│   │   └── page.tsx
+│   │   └── page.tsx                    # Menu: Peninjauan Mahasiswa
 │   ├── detail-mahasiswa/
 │   │   ├── layout.tsx
 │   │   └── page.tsx
-│   ├── hasil-pencarian/
-│   │   └── page.tsx
-│   │
-│   ├── fitur-utama/                    # FOLDER BARU: Fitur Utama
-│   │   ├── page.tsx                    # Index halaman fitur utama
-│   │   ├── data-lengkap/
-│   │   │   └── page.tsx               # Data Lengkap Mahasiswa
-│   │   ├── data-perangkatan/
-│   │   │   └── page.tsx               # Data Perangkatan Mahasiswa
-│   │   ├── data-alumni/
-│   │   │   └── page.tsx               # Data Alumni
-│   │   ├── prestasi-mahasiswa/
-│   │   │   └── page.tsx               # Prestasi Mahasiswa
-│   │   ├── penerima-beasiswa/
-│   │   │   └── page.tsx               # Penerima Beasiswa
-│   │   ├── mahasiswa-aktif/
-│   │   │   └── page.tsx               # Mahasiswa Aktif
-│   │   └── mahasiswa-tidak-aktif/
-│   │       └── page.tsx               # Mahasiswa Tidak Aktif
-│   │
-│   ├── data-lengkap/                   # FOLDER LAMA (tetap ada)
-│   │   └── page.tsx                    # Untuk backward compatibility
+│   ├── data-lengkap/
+│   │   └── page.tsx                    # Data Lengkap Mahasiswa
 │   ├── data-perangkatan/
-│   │   └── page.tsx
+│   │   └── page.tsx                    # Data Per Angkatan
 │   ├── data-alumni/
-│   │   └── page.tsx
+│   │   └── page.tsx                    # Data Alumni
 │   ├── prestasi-mahasiswa/
-│   │   └── page.tsx
+│   │   └── page.tsx                    # Prestasi Mahasiswa
 │   ├── penerima-beasiswa/
-│   │   └── page.tsx
+│   │   └── page.tsx                    # Penerima Beasiswa
 │   ├── mahasiswa-aktif/
-│   │   └── page.tsx
+│   │   └── page.tsx                    # Mahasiswa Aktif
 │   └── mahasiswa-tidak-aktif/
-│       └── page.tsx
+│       └── page.tsx                    # Mahasiswa Tidak Aktif
 │
 ├── components/
 │   ├── MainLayout.tsx                  # Layout wrapper untuk pages
-│   └── Sidebar.tsx                     # Sidebar navigation (DIPERBARUI)
+│   └── Sidebar.tsx                     # Sidebar navigation dengan accordion
 ├── context/
 │   └── MahasiswaContext.tsx
 ├── public/
 └── package.json
 ```
 
-## Perubahan Utama
+## Navigasi Sidebar
 
-### 1. Update Sidebar Navigation
-**File**: `components/Sidebar.tsx`
+### Menu Utama
+1. **Dashboard** (`/`) - Halaman utama dengan statistik dan chart
+2. **Cari Mahasiswa** (`/cari-mahasiswa`) - Pencarian individual mahasiswa
+3. **Peninjauan Mahasiswa** (`/analisis-search`) - Analisis lanjutan
 
-**Sebelum**:
-```typescript
-const navigation = [
-  { name: 'Dashboard', href: '/', ... },
-  { name: 'Cari Mahasiswa', href: '/cari-mahasiswa', ... },
-  { name: 'Pencarian & Analisis', href: '/analisis-search', ... },
-  { name: 'Analisis Status', href: '/analisis-mahasiswa', ... },
-  { name: 'Data Lengkap', href: '/data-lengkap', ... },
-  { name: 'Data Perangkatan', href: '/data-perangkatan', ... },
-  { name: 'Data Alumni', href: '/data-alumni', ... },
-  { name: 'Prestasi Mahasiswa', href: '/prestasi-mahasiswa', ... },
-  { name: 'Penerima Beasiswa', href: '/penerima-beasiswa', ... },
-  { name: 'Mahasiswa Aktif', href: '/mahasiswa-aktif', ... },
-  { name: 'Mahasiswa Tidak Aktif', href: '/mahasiswa-tidak-aktif', ... },
-]
-```
+### Menu Data Mahasiswa (Accordion)
+Menu dropdown yang bisa di-expand/collapse, berisi 7 sub-menu:
+1. **Data Lengkap** (`/data-lengkap`) - Seluruh data mahasiswa
+2. **Data Per Angkatan** (`/data-perangkatan`) - Data per tahun angkatan
+3. **Data Alumni** (`/data-alumni`) - Data lulusan (SKS ≥ 144)
+4. **Prestasi Mahasiswa** (`/prestasi-mahasiswa`) - Mahasiswa berprestasi (IPK ≥ 3.5)
+5. **Penerima Beasiswa** (`/penerima-beasiswa`) - Kandidat penerima beasiswa
+6. **Mahasiswa Aktif** (`/mahasiswa-aktif`) - Data mahasiswa aktif
+7. **Mahasiswa Tidak Aktif** (`/mahasiswa-tidak-aktif`) - Data mahasiswa tidak aktif
 
-**Sesudah**:
-```typescript
-const navigation = [
-  { name: 'Dashboard', href: '/', ... },
-  { name: 'Cari Mahasiswa', href: '/cari-mahasiswa', ... },
-  { name: 'Pencarian & Analisis', href: '/analisis-search', ... },
-  { name: 'Analisis Status', href: '/analisis-mahasiswa', ... },
-  { name: 'Fitur Utama', href: '/fitur-utama', ... },  // BARU
-]
-```
-
-### 2. Folder Fitur Utama Baru
-Dibuat folder `app/fitur-utama/` dengan struktur:
-- `page.tsx` - Dashboard fitur utama dengan menu card interaktif
-- 7 subfolder untuk setiap fitur
-
-### 3. Page Fitur Utama
-**File**: `app/fitur-utama/page.tsx`
-
-Halaman index yang menampilkan semua fitur dalam bentuk card grid:
-- Data Lengkap
-- Data Perangkatan  
-- Data Alumni
-- Prestasi Mahasiswa
-- Penerima Beasiswa
-- Mahasiswa Aktif
-- Mahasiswa Tidak Aktif
-
-Setiap card memiliki:
-- Icon yang unik
-- Deskripsi fitur
-- Warna border yang berbeda
-- Link ke halaman fitur
-
-### 4. URL Baru untuk Fitur Utama
-| Fitur | URL Lama | URL Baru |
-|-------|----------|----------|
-| Data Lengkap | `/data-lengkap` | `/fitur-utama/data-lengkap` |
-| Data Perangkatan | `/data-perangkatan` | `/fitur-utama/data-perangkatan` |
-| Data Alumni | `/data-alumni` | `/fitur-utama/data-alumni` |
-| Prestasi Mahasiswa | `/prestasi-mahasiswa` | `/fitur-utama/prestasi-mahasiswa` |
-| Penerima Beasiswa | `/penerima-beasiswa` | `/fitur-utama/penerima-beasiswa` |
-| Mahasiswa Aktif | `/mahasiswa-aktif` | `/fitur-utama/mahasiswa-aktif` |
-| Mahasiswa Tidak Aktif | `/mahasiswa-tidak-aktif` | `/fitur-utama/mahasiswa-tidak-aktif` |
-
-## Navigasi Dashboard
-
-### Menu Utama (Sidebar)
-Sekarang hanya memiliki 5 menu:
-1. **Dashboard** - Halaman utama dengan statistik
-2. **Cari Mahasiswa** - Pencarian individual mahasiswa
-3. **Pencarian & Analisis** - Analisis lanjutan
-4. **Analisis Status** - Analisis status mahasiswa
-5. **Fitur Utama** - Gateway ke 7 fitur utama
-
-### Halaman Fitur Utama
-Menampilkan 7 fitur dalam grid card yang rapi dan interaktif:
-- Responsive design
-- Hover effect dengan scale dan shadow
-- Navigasi ke setiap fitur
+### Mobile Navigation
+- Bottom navigation bar dengan 4 item: Dashboard, Cari, Peninjauan, Data
+- Item "Data" membuka overlay menu berisi 7 sub-menu Data Mahasiswa
 
 ## Install & Run Frontend
 
@@ -174,10 +86,3 @@ Aplikasi akan berjalan di `http://localhost:3000`
 Pastikan backend running di `http://localhost:8080`
 
 Semua API calls di-hardcode ke `http://localhost:8080` dalam setiap component.
-
-## Notes
-
-1. **Folder lama tetap ada** untuk backward compatibility
-2. **Semua fitur masih berfungsi** di kedua URL (lama dan baru)
-3. **Sidebar hanya menunjuk ke URL baru** via `/fitur-utama`
-4. **Page fitur utama** memberikan interface yang lebih rapi untuk mengakses 7 fitur

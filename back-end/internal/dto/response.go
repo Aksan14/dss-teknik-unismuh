@@ -16,6 +16,7 @@ type MahasiswaResponse struct {
 	SKSMatakuliahDiulang    int     `json:"sks_mk_diulang"`
 	Status                  string  `json:"status"`
 	Kategori                string  `json:"kategori"`
+	Jurusan                 string  `json:"jurusan"`
 }
 
 // MahasiswaListResponse represents paginated list response
@@ -57,6 +58,7 @@ type HasilSAWResponse struct {
 	Nilai                   float64 `json:"nilai_saw"`
 	Kategori                string  `json:"kategori"`
 	Ranking                 int     `json:"ranking"`
+	Jurusan                 string  `json:"jurusan"`
 }
 
 // ErrorResponse represents error response
@@ -319,6 +321,7 @@ func FromDomain(m *domain.Mahasiswa) MahasiswaResponse {
 		SKSMatakuliahDiulang:    m.SKSMatakuliahDiulang,
 		Status:                  string(m.GetStatus()),
 		Kategori:                string(m.GetKategori()),
+		Jurusan:                 m.Jurusan,
 	}
 }
 

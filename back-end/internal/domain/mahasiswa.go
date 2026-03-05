@@ -1,5 +1,14 @@
 package domain
 
+// ProdiMapping maps kode prodi to nama prodi for Fakultas Teknik (04)
+var ProdiMapping = map[string]string{
+	"20201": "Elektro",
+	"22202": "Pengairan",
+	"23201": "Arsitektur",
+	"55202": "Informatika",
+	"35201": "Perencanaan Wilayah Dan Kota",
+}
+
 // Mahasiswa represents the core student entity from GraphQL API
 type Mahasiswa struct {
 	NIM                     string  `json:"nim"`
@@ -12,6 +21,7 @@ type Mahasiswa struct {
 	MatakuliahLulus         int     `json:"matakuliahLulus"`
 	JumlahMatakuliahDiulang int     `json:"jumlahMatakuliahDiulang"`
 	SKSMatakuliahDiulang    int     `json:"sksMatakuliahDiulang"`
+	Jurusan                 string  `json:"jurusan"`
 }
 
 // MahasiswaDetail represents the full student detail from GetMahasiswa query

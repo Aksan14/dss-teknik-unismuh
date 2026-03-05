@@ -1,5 +1,6 @@
 ﻿'use client';
-import { useState, useEffect, useMemo } from 'react';import { ChartBarIcon, CalculatorIcon, MagnifyingGlassIcon, FunnelIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { CalculatorIcon, ChartBarIcon, CheckCircleIcon, ExclamationTriangleIcon, FunnelIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { useEffect, useMemo, useState } from 'react';
 
 interface MahasiswaData {
   nim: string;
@@ -14,6 +15,7 @@ interface MahasiswaData {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
+  jurusan: string;
 }
 
 interface HasilSAW {
@@ -29,7 +31,9 @@ interface HasilSAW {
   angkatan: number;
   nilai_saw: number;
   kategori: string;
+  jurusan: string;
   ranking: number;
+  jurusan: string;
 }
 
 export default function Proses() {
@@ -246,6 +250,7 @@ export default function Proses() {
                       <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-blue-900">Nama</th>
                       <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-blue-900">NIM</th>
                       <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-blue-900">Angkatan</th>
+                      <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-blue-900">Jurusan</th>
                       <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-blue-900">IPK</th>
                       <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-blue-900">SKS Lulus</th>
                       <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-blue-900">SKS Diambil</th>
@@ -261,6 +266,7 @@ export default function Proses() {
                         <td className="border border-gray-200 px-3 py-2 font-medium">{m.nama}</td>
                         <td className="border border-gray-200 px-3 py-2">{m.nim}</td>
                         <td className="border border-gray-200 px-3 py-2 text-center">{m.angkatan}</td>
+                        <td className="border border-gray-200 px-3 py-2 text-xs">{m.jurusan}</td>
                         <td className="border border-gray-200 px-3 py-2 text-center">{(m.ipk || 0).toFixed(2)}</td>
                         <td className="border border-gray-200 px-3 py-2 text-center">{m.sks_lulus}</td>
                         <td className="border border-gray-200 px-3 py-2 text-center">{m.sks_diambil}</td>
@@ -322,6 +328,7 @@ export default function Proses() {
                       <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-yellow-900">Nama</th>
                       <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-yellow-900">NIM</th>
                       <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-yellow-900">Angkatan</th>
+                      <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-yellow-900">Jurusan</th>
                       <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-yellow-900">IPK</th>
                       <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-yellow-900">MK Diulang</th>
                       <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-yellow-900">SKS MK Diulang</th>
@@ -338,6 +345,7 @@ export default function Proses() {
                         <td className="border border-gray-200 px-3 py-2 font-medium">{h.nama}</td>
                         <td className="border border-gray-200 px-3 py-2">{h.nim}</td>
                         <td className="border border-gray-200 px-3 py-2 text-center">{h.angkatan}</td>
+                        <td className="border border-gray-200 px-3 py-2 text-xs">{h.jurusan}</td>
                         <td className="border border-gray-200 px-3 py-2 text-center">{(h.ipk || 0).toFixed(2)}</td>
                         <td className={`border border-gray-200 px-3 py-2 text-center font-semibold ${h.jumlah_mk_diulang > 0 ? 'text-red-700' : 'text-green-700'}`}>{h.jumlah_mk_diulang}</td>
                         <td className={`border border-gray-200 px-3 py-2 text-center font-semibold ${h.sks_mk_diulang > 0 ? 'text-red-700' : 'text-green-700'}`}>{h.sks_mk_diulang}</td>
@@ -370,6 +378,7 @@ export default function Proses() {
                         <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-red-900">Nama</th>
                         <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-red-900">NIM</th>
                         <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-red-900">Angkatan</th>
+                        <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-red-900">Jurusan</th>
                         <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-red-900">IPK</th>
                         <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-red-900">SKS Diambil</th>
                         <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-red-900">SKS Lulus</th>
@@ -389,6 +398,7 @@ export default function Proses() {
                             <td className="border border-gray-200 px-3 py-2 font-medium">{h.nama}</td>
                             <td className="border border-gray-200 px-3 py-2">{h.nim}</td>
                             <td className="border border-gray-200 px-3 py-2 text-center">{h.angkatan}</td>
+                            <td className="border border-gray-200 px-3 py-2 text-xs">{h.jurusan}</td>
                             <td className="border border-gray-200 px-3 py-2 text-center">{(h.ipk || 0).toFixed(2)}</td>
                             <td className="border border-gray-200 px-3 py-2 text-center">{h.sks_diambil}</td>
                             <td className="border border-gray-200 px-3 py-2 text-center">{h.sks_lulus}</td>

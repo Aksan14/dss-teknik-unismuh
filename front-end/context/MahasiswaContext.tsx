@@ -19,6 +19,9 @@ export interface MahasiswaAPI {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
+  jurusan: string;
+  jurusan: string;
+  jurusan: string;
 }
 
 interface MahasiswaListResponse {
@@ -58,7 +61,13 @@ export interface HasilSAWAPI {
   angkatan: number;
   nilai_saw: number;
   kategori: string;
+  jurusan: string;
+  jurusan: string;
+  jurusan: string;
   ranking: number;
+  jurusan: string;
+  jurusan: string;
+  jurusan: string;
 }
 
 interface SAWResponse {

@@ -1,13 +1,13 @@
 'use client';
 
 import {
-  HomeIcon,
-  ChevronLeftIcon,
-  ChevronDoubleLeftIcon,
-  ChevronDoubleRightIcon,
+    ChevronDoubleLeftIcon,
+    ChevronDoubleRightIcon,
+    ChevronLeftIcon,
+    HomeIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface Mahasiswa {
   nim: string;
@@ -22,6 +22,8 @@ interface Mahasiswa {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
+  jurusan: string;
+  jurusan: string;
 }
 
 const PER_PAGE = 30;
@@ -140,6 +142,7 @@ export default function PrestasiMahasiswa() {
                   <th className="px-6 py-4 text-left font-semibold text-yellow-900">Nama</th>
                   <th className="px-6 py-4 text-left font-semibold text-yellow-900">NIM</th>
                   <th className="px-6 py-4 text-left font-semibold text-yellow-900">Angkatan</th>
+                  <th className="px-6 py-4 text-left font-semibold text-yellow-900">Jurusan</th>
                   <th className="px-6 py-4 text-left font-semibold text-yellow-900">IPK</th>
                   <th className="px-6 py-4 text-left font-semibold text-yellow-900">SKS Lulus</th>
                   <th className="px-6 py-4 text-left font-semibold text-yellow-900">SKS Diambil</th>
@@ -153,11 +156,11 @@ export default function PrestasiMahasiswa() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">Loading data...</td>
+                    <td colSpan={13} className="px-6 py-8 text-center text-gray-500">Loading data...</td>
                   </tr>
                 ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
                       {search ? 'Tidak ada data yang cocok' : 'Tidak ada mahasiswa berprestasi'}
                     </td>
                   </tr>
@@ -178,6 +181,7 @@ export default function PrestasiMahasiswa() {
                           {mahasiswa.angkatan}
                         </span>
                       </td>
+                      <td className="px-6 py-4 text-gray-900 text-xs">{mahasiswa.jurusan}</td>
                       <td className="px-6 py-4">
                         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
                           {(mahasiswa.ipk || 0).toFixed(2)}

@@ -1,24 +1,32 @@
 ﻿'use client';
 
 import {
-  AcademicCapIcon,
-  ArrowRightIcon,
-  ArrowTrendingUpIcon,
-  CalendarDaysIcon,
-  ChartBarIcon,
-  ClipboardDocumentListIcon,
-  HomeIcon,
-  MagnifyingGlassIcon,
-  UserGroupIcon,
-  StarIcon,
-  GiftIcon,
+    AcademicCapIcon,
+    ArrowRightIcon,
+    ArrowTrendingUpIcon,
+    CalendarDaysIcon,
+    ChartBarIcon,
+    ClipboardDocumentListIcon,
+    GiftIcon,
+    HomeIcon,
+    MagnifyingGlassIcon,
+    StarIcon,
+    UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
-  AreaChart, Area,
+    Area,
+    AreaChart,
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell, Legend,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis, YAxis,
 } from 'recharts';
 
 interface Stats {
@@ -149,7 +157,7 @@ export default function Dashboard() {
       color: 'text-green-900',
       bgColor: 'bg-green-100',
       borderColor: 'border-green-200',
-      link: '/fitur-utama/mahasiswa-aktif'
+      link: '/mahasiswa-aktif'
     },
     { 
       label: 'Tidak Aktif', 
@@ -158,7 +166,7 @@ export default function Dashboard() {
       color: 'text-red-900',
       bgColor: 'bg-red-100',
       borderColor: 'border-red-200',
-      link: '/fitur-utama/mahasiswa-tidak-aktif'
+      link: '/mahasiswa-tidak-aktif'
     },
     { 
       label: 'Berprestasi', 

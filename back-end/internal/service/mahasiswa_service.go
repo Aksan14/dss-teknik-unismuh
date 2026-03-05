@@ -20,6 +20,9 @@ type MahasiswaService struct {
 	repo        repository.MahasiswaRepository
 	redisCache  *cache.RedisCache
 	memoryCache *memCache
+	fetchMu     sync.Mutex    // prevents multiple concurrent API fetches
+	fetching    bool          // true when a fetch is in progress
+	fetchDone   chan struct{} // signals waiting goroutines that fetch completed
 }
 
 // memCache stores all data + computed results in memory as fallback
@@ -626,6 +629,7 @@ func (s *MahasiswaService) ProsesSAW(kodeFakultas string, angkatanFrom, angkatan
 			Nilai:                   r.nilai,
 			Kategori:                kategori,
 			Ranking:                 i + 1,
+			Jurusan:                 r.mahasiswa.Jurusan,
 		}
 	}
 
@@ -652,7 +656,37 @@ func (s *MahasiswaService) fetchWithCache(kodeFakultas string, angkatanFrom, ang
 		}
 	}
 
-	// 3. Fetch from GraphQL API
+	// 3. Singleflight: only one goroutine fetches, others wait
+	s.fetchMu.Lock()
+	if s.fetching {
+		// Another goroutine is already fetching, wait for it
+		waitCh := s.fetchDone
+		s.fetchMu.Unlock()
+		log.Println("Waiting for in-flight fetch to complete...")
+		<-waitCh
+		// After wait, data should be in cache now
+		if s.memoryCache.isValid() {
+			data := s.memoryCache.getData()
+			if data != nil {
+				log.Printf("Cache HIT after wait: all mahasiswa (memory, %d records)", len(data))
+				return data, nil
+			}
+		}
+		return nil, fmt.Errorf("data not available after waiting for fetch")
+	}
+	// Mark as fetching
+	s.fetching = true
+	s.fetchDone = make(chan struct{})
+	s.fetchMu.Unlock()
+
+	defer func() {
+		s.fetchMu.Lock()
+		s.fetching = false
+		close(s.fetchDone)
+		s.fetchMu.Unlock()
+	}()
+
+	// 4. Fetch from GraphQL API (parallel per-prodi)
 	log.Println("Cache MISS: fetching from GraphQL API...")
 	data, err := s.repo.FetchMahasiswaAll(kodeFakultas, angkatanFrom, angkatanTo, 100000000, 0)
 	if err != nil {
@@ -663,7 +697,7 @@ func (s *MahasiswaService) fetchWithCache(kodeFakultas string, angkatanFrom, ang
 	// Precompute stats
 	stats := s.computeStats(data)
 
-	// 4. Store in Redis
+	// 5. Store in Redis
 	if cacheErr := s.redisCache.Set(ctx, cache.KeyAllMahasiswa, data); cacheErr != nil {
 		log.Printf("Warning: Redis cache set failed: %v", cacheErr)
 	} else {
@@ -675,7 +709,7 @@ func (s *MahasiswaService) fetchWithCache(kodeFakultas string, angkatanFrom, ang
 		log.Printf("Warning: Redis stats cache failed: %v", cacheErr)
 	}
 
-	// 5. Store in memory (always works)
+	// 6. Store in memory (always works)
 	s.memoryCache.store(data, stats)
 	log.Println("Data cached to memory successfully")
 

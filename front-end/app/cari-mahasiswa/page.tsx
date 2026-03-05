@@ -2,22 +2,23 @@
 
 import {
     AcademicCapIcon,
-    ExclamationCircleIcon,
-    IdentificationIcon,
-    MagnifyingGlassIcon,
-    ChevronLeftIcon,
-    BookOpenIcon,
-    ExclamationTriangleIcon,
-    CheckCircleIcon,
-    ArrowTrendingUpIcon,
     ArrowTrendingDownIcon,
+    ArrowTrendingUpIcon,
+    BookOpenIcon,
+    ChatBubbleLeftRightIcon,
+    CheckCircleIcon,
+    ChevronLeftIcon,
     ClockIcon,
-    StarIcon,
-    ShieldCheckIcon,
+    ExclamationCircleIcon,
+    ExclamationTriangleIcon,
+    IdentificationIcon,
     LightBulbIcon,
-    UserIcon,
+    MagnifyingGlassIcon,
     PhoneIcon,
-    UserGroupIcon
+    ShieldCheckIcon,
+    StarIcon,
+    UserGroupIcon,
+    UserIcon
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 
@@ -57,9 +58,9 @@ interface MahasiswaDetail {
 function InfoRow({ label, value }: { label: string; value: string | number | undefined | null }) {
   const display = value !== null && value !== undefined && value !== '' ? String(value) : '-';
   return (
-    <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-      <span className="text-sm text-gray-500">{label}</span>
-      <span className="text-sm font-medium text-gray-900 text-right max-w-[60%]">{display}</span>
+    <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 gap-4">
+      <span className="text-sm text-gray-500 flex-shrink-0 w-[40%]">{label}</span>
+      <span className="text-sm font-medium text-gray-900 text-right flex-1 break-words">{display}</span>
     </div>
   );
 }
@@ -79,8 +80,8 @@ function SectionCard({ title, icon, children }: { title: string; icon: React.Rea
 function OrangTuaCard({ title, data }: { title: string; data: OrangTua | null }) {
   if (!data || !data.nama) return null;
   return (
-    <div className="bg-gray-50 rounded-lg p-4">
-      <h4 className="font-semibold text-gray-800 mb-3">{title}</h4>
+    <div className="bg-gray-50 rounded-lg p-4 h-full">
+      <h4 className="font-semibold text-gray-800 mb-3 text-base border-b border-gray-200 pb-2">{title}</h4>
       <InfoRow label="Nama" value={data.nama} />
       <InfoRow label="NIK" value={data.nik} />
       <InfoRow label="HP" value={data.hp} />
@@ -216,6 +217,96 @@ export default function CariMahasiswaPage() {
     const skorLabel = skor >= 80 ? 'Sangat Baik' : skor >= 60 ? 'Baik' : skor >= 40 ? 'Cukup' : skor >= 20 ? 'Kurang' : 'Kritis';
     const skorColor = skor >= 80 ? 'text-green-700' : skor >= 60 ? 'text-blue-700' : skor >= 40 ? 'text-yellow-700' : skor >= 20 ? 'text-orange-700' : 'text-red-700';
     const skorBg = skor >= 80 ? 'bg-green-500' : skor >= 60 ? 'bg-blue-500' : skor >= 40 ? 'bg-yellow-500' : skor >= 20 ? 'bg-orange-500' : 'bg-red-500';
+
+    // ─── Prediksi & Tanya Jawab Akademik ───
+    const totalSKSWajib = m.sks_total || 144;
+    const sksSisa = Math.max(totalSKSWajib - m.sks_lulus, 0);
+    const semesterIdeal = 8;
+    const semesterSisaIdeal = Math.max(semesterIdeal - semesterAktif, 0);
+    const sksPerSemIdeal = semesterSisaIdeal > 0 ? Math.ceil(sksSisa / semesterSisaIdeal) : 0;
+    const mkLulusPerSem = semesterAktif > 0 ? (m.matakuliah_lulus / semesterAktif).toFixed(1) : '0';
+    const tingkatKelulusanMK = m.sks_diambil > 0 ? ((m.sks_lulus / m.sks_diambil) * 100) : 0;
+    const semTerbaik = khs.length > 0 ? khs.reduce((best, k) => (k.ips > best.ips ? k : best), khs[0]) : null;
+    const semTerburuk = khs.length > 0 ? khs.reduce((worst, k) => (k.ips < worst.ips ? k : worst), khs[0]) : null;
+    const isOnTrack = !m.lulus && semesterAktif <= semesterIdeal && progressSKS >= ((semesterAktif / semesterIdeal) * 100) * 0.8;
+    const riskDO = m.ipk < 2.0 && tahunStudi > 5 && !m.lulus;
+    const bisaCumLaude = m.ipk >= 3.5 && m.jumlah_mk_diulang === 0;
+    const estimasiBulanTahunLulus = semesterSisa > 0 ? (() => {
+      const now = new Date();
+      const bulanTambahan = semesterSisa * 6;
+      const est = new Date(now.getFullYear(), now.getMonth() + bulanTambahan);
+      return est.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    })() : null;
+
+    const tanyaJawab: { q: string; a: string; color: string }[] = [];
+
+    // Q: Sudah lulus / Berapa lama lagi lulus?
+    if (m.lulus) {
+      tanyaJawab.push({ q: 'Apakah mahasiswa ini sudah lulus?', a: `Ya, mahasiswa telah menyelesaikan studi${m.tanggal_lulus ? ' pada ' + m.tanggal_lulus : ''}${m.masa_studi ? ' dengan masa studi ' + m.masa_studi : ''}.`, color: 'green' });
+    } else if (sksPerSemester > 0 && sksSisa > 0) {
+      tanyaJawab.push({ q: 'Berapa lama lagi mahasiswa ini bisa lulus?', a: `Dengan rata-rata ${sksPerSemester.toFixed(1)} SKS per semester, mahasiswa membutuhkan sekitar ${semesterSisa} semester lagi (~${(semesterSisa / 2).toFixed(1)} tahun) untuk menyelesaikan sisa ${sksSisa} SKS dari total ${totalSKSWajib} SKS.${estimasiBulanTahunLulus ? ' Estimasi lulus sekitar ' + estimasiBulanTahunLulus + '.' : ''}`, color: semesterSisa <= 2 ? 'green' : semesterSisa <= 4 ? 'blue' : 'orange' });
+    } else if (!m.lulus) {
+      tanyaJawab.push({ q: 'Berapa lama lagi mahasiswa ini bisa lulus?', a: 'Belum dapat diprediksi karena belum ada data semester yang cukup untuk perhitungan.', color: 'gray' });
+    }
+
+    // Q: Rata-rata SKS per semester
+    tanyaJawab.push({ q: 'Berapa rata-rata SKS yang ditempuh per semester?', a: `Rata-rata ${sksPerSemester.toFixed(1)} SKS per semester selama ${semesterAktif} semester aktif. Rata-rata mata kuliah lulus per semester: ${mkLulusPerSem} MK. Total SKS lulus saat ini: ${m.sks_lulus} dari ${totalSKSWajib} SKS.`, color: 'blue' });
+
+    // Q: On-track?
+    if (!m.lulus) {
+      const expectedProgressPct = Math.round((semesterAktif / semesterIdeal) * 100);
+      tanyaJawab.push({ q: 'Apakah mahasiswa ini on-track untuk lulus tepat waktu (4 tahun)?', a: isOnTrack ? `Ya, mahasiswa berada di jalur yang tepat. Sudah menyelesaikan ${progressSKS.toFixed(0)}% SKS di semester ke-${semesterAktif} (target ~${expectedProgressPct}%).` : `Tidak. Baru ${progressSKS.toFixed(0)}% SKS selesai di semester ke-${semesterAktif}, sementara seharusnya sudah sekitar ${expectedProgressPct}% pada titik ini.`, color: isOnTrack ? 'green' : 'orange' });
+    }
+
+    // Q: SKS per semester agar lulus tepat waktu
+    if (!m.lulus && sksSisa > 0) {
+      if (semesterSisaIdeal > 0) {
+        tanyaJawab.push({ q: 'Berapa SKS yang harus diambil per semester agar lulus tepat waktu?', a: `Untuk lulus dalam ${semesterIdeal} semester (4 tahun), mahasiswa harus mengambil minimal ${sksPerSemIdeal} SKS per semester selama ${semesterSisaIdeal} semester ke depan. ${sksPerSemIdeal > 24 ? 'Jumlah ini melebihi batas normal (20-24 SKS), sehingga kelulusan tepat waktu kemungkinan sulit tercapai.' : sksPerSemIdeal > 20 ? 'Beban ini cukup berat namun masih memungkinkan.' : 'Target ini sangat realistis dan bisa dicapai.'}`, color: sksPerSemIdeal > 24 ? 'red' : sksPerSemIdeal > 20 ? 'orange' : 'green' });
+      } else {
+        tanyaJawab.push({ q: 'Berapa SKS yang harus diambil per semester agar segera lulus?', a: `Mahasiswa sudah melewati batas ${semesterIdeal} semester ideal. Sisa ${sksSisa} SKS harus diselesaikan secepatnya. Dengan mengambil ~${Math.min(24, sksSisa)} SKS per semester, dibutuhkan sekitar ${Math.ceil(sksSisa / 20)} semester lagi.`, color: 'red' });
+      }
+    }
+
+    // Q: Semester terbaik
+    if (semTerbaik && khs.length > 1) {
+      tanyaJawab.push({ q: 'Semester mana yang memiliki performa terbaik?', a: `Semester terbaik adalah ${semTerbaik.tahun_akademik} dengan IPS ${semTerbaik.ips.toFixed(2)}, lulus ${semTerbaik.matakuliah_lulus} MK (${semTerbaik.sks_lulus} SKS).`, color: 'green' });
+    }
+
+    // Q: Semester terburuk
+    if (semTerburuk && khs.length > 1 && semTerburuk.tahun_akademik !== semTerbaik?.tahun_akademik) {
+      tanyaJawab.push({ q: 'Semester mana yang memiliki performa terburuk?', a: `Semester terburuk adalah ${semTerburuk.tahun_akademik} dengan IPS ${semTerburuk.ips.toFixed(2)}${semTerburuk.jumlah_mk_diulang > 0 ? ', dengan ' + semTerburuk.jumlah_mk_diulang + ' MK yang harus diulang' : ''}.`, color: 'red' });
+    }
+
+    // Q: Tingkat kelulusan MK
+    tanyaJawab.push({ q: 'Berapa tingkat kelulusan mata kuliah?', a: `Tingkat kelulusan (efisiensi) adalah ${tingkatKelulusanMK.toFixed(1)}%. Dari setiap SKS yang diambil, ${tingkatKelulusanMK.toFixed(0)}% berhasil lulus. ${tingkatKelulusanMK >= 95 ? 'Sangat baik!' : tingkatKelulusanMK >= 85 ? 'Cukup baik.' : tingkatKelulusanMK >= 70 ? 'Perlu ditingkatkan.' : 'Perlu perhatian serius.'}`, color: tingkatKelulusanMK >= 90 ? 'green' : tingkatKelulusanMK >= 75 ? 'blue' : 'orange' });
+
+    // Q: Risiko DO
+    if (!m.lulus) {
+      tanyaJawab.push({ q: 'Apakah ada risiko drop out (DO)?', a: riskDO ? `Ya, ada indikasi risiko DO. IPK mahasiswa ${m.ipk.toFixed(2)} (di bawah 2.0) dan masa studi sudah ${tahunStudi} tahun. Perlu penanganan segera dari dosen PA.` : `Tidak ada indikasi risiko DO saat ini. ${m.ipk >= 2.5 ? 'IPK dalam batas aman.' : m.ipk >= 2.0 ? 'Namun IPK perlu dijaga agar tidak turun di bawah 2.0.' : 'Namun IPK perlu segera ditingkatkan.'}`, color: riskDO ? 'red' : 'green' });
+    }
+
+    // Q: Peluang cum laude
+    if (!m.lulus) {
+      tanyaJawab.push({ q: 'Apakah mahasiswa ini berpeluang mendapat predikat cum laude?', a: bisaCumLaude ? `Ya, berpeluang! IPK saat ini ${m.ipk.toFixed(2)} (>= 3.50) dan tidak ada mata kuliah yang diulang. Pertahankan performa ini!` : m.ipk >= 3.5 && m.jumlah_mk_diulang > 0 ? `Tidak bisa cum laude karena ada ${m.jumlah_mk_diulang} MK yang diulang, meskipun IPK ${m.ipk.toFixed(2)} sudah memenuhi syarat.` : m.ipk < 3.5 && m.ipk >= 3.0 ? `Belum memenuhi syarat cum laude (IPK ${m.ipk.toFixed(2)}, syarat >= 3.50). Masih ada peluang jika performa ditingkatkan secara konsisten.` : `Belum memenuhi syarat cum laude (IPK ${m.ipk.toFixed(2)}, syarat >= 3.50).`, color: bisaCumLaude ? 'green' : m.ipk >= 3.0 ? 'blue' : 'gray' });
+    }
+
+    // Q: Tren performa
+    tanyaJawab.push({ q: 'Bagaimana tren performa akademik mahasiswa ini?', a: trend === 'up' ? `Performa akademik menunjukkan tren meningkat. IPS terakhir: ${ipsLast.toFixed(2)} (naik dari semester sebelumnya). Hal positif yang perlu dipertahankan.` : trend === 'down' ? `Performa akademik menunjukkan tren menurun. IPS terakhir: ${ipsLast.toFixed(2)} (turun dari semester sebelumnya). Perlu evaluasi dan perbaikan strategi belajar.` : `Performa akademik relatif stabil. IPS terakhir: ${ipsLast.toFixed(2)}. ${ipsLast >= 3.0 ? 'Stabil di level yang baik.' : 'Perlu upaya untuk peningkatan.'}`, color: trend === 'up' ? 'green' : trend === 'down' ? 'red' : 'blue' });
+
+    // Q: Dampak MK diulang
+    if (m.jumlah_mk_diulang > 0) {
+      tanyaJawab.push({ q: 'Bagaimana dampak mata kuliah yang diulang?', a: `Mahasiswa memiliki ${m.jumlah_mk_diulang} MK yang diulang (${m.sks_mk_diulang} SKS), mengkonsumsi ${rasioUlang.toFixed(1)}% dari total SKS yang diambil. ${rasioUlang > 15 ? 'Rasio ini sangat tinggi dan memperlambat kelulusan secara signifikan.' : rasioUlang > 8 ? 'Rasio ini cukup berpengaruh terhadap kecepatan penyelesaian studi.' : 'Dampaknya masih terkelola, namun tetap perlu diminimalisir.'}`, color: rasioUlang > 15 ? 'red' : rasioUlang > 8 ? 'orange' : 'blue' });
+    }
+
+    // Q: Beban studi
+    if (!m.lulus && khs.length > 0) {
+      const sksAmbilTerakhir = khs[khs.length - 1].sks_diambil;
+      const batasMaxSKS = m.ipk >= 3.0 ? 24 : m.ipk >= 2.5 ? 21 : 18;
+      tanyaJawab.push({ q: 'Berapa batas SKS yang bisa diambil berdasarkan IPK?', a: `Dengan IPK ${m.ipk.toFixed(2)}, mahasiswa dapat mengambil maksimal ${batasMaxSKS} SKS per semester (IPK >= 3.0: 24 SKS, IPK 2.5-2.99: 21 SKS, IPK < 2.5: 18 SKS). Semester terakhir mengambil ${sksAmbilTerakhir} SKS.${sksAmbilTerakhir > batasMaxSKS ? ' Perlu perhatian, melebihi batas yang disarankan.' : ''}`, color: 'blue' });
+    }
+
+    // Q: Sudah berapa semester + berapa tahun
+    tanyaJawab.push({ q: 'Sudah berapa lama mahasiswa ini menempuh studi?', a: `Mahasiswa angkatan ${m.angkatan} telah menempuh ${semesterAktif} semester aktif (${tahunStudi} tahun). ${m.lulus ? 'Sudah menyelesaikan studi.' : tahunStudi <= 4 ? 'Masih dalam batas waktu normal.' : tahunStudi <= 6 ? 'Sudah melewati batas normal 4 tahun, namun masih dalam toleransi.' : 'Sudah jauh melewati batas normal. Perlu perhatian khusus.'}`, color: tahunStudi <= 4 ? 'green' : tahunStudi <= 6 ? 'orange' : 'red' });
 
     const tabs = [
       { id: 'analisis' as const, label: 'Analisis Status' },
@@ -393,6 +484,65 @@ export default function CariMahasiswaPage() {
                 </div>
               </div>
 
+              {/* ── Prediksi & Tanya Jawab Akademik ── */}
+              <div className="relative">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center shadow-lg">
+                        <ChatBubbleLeftRightIcon className="h-5 w-5 text-amber-400" />
+                      </div>
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center">
+                        <span className="text-[8px] font-black text-slate-900">?</span>
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Tanya Jawab Akademik</h3>
+                      <p className="text-xs text-slate-500">Analisis prediktif berdasarkan data performa mahasiswa</p>
+                    </div>
+                  </div>
+                  <span className="bg-slate-900 text-amber-400 text-xs font-bold px-3 py-1.5 rounded-full">{tanyaJawab.length} Q&A</span>
+                </div>
+
+                {/* Chat-style Q&A */}
+                <div className="space-y-4">
+                  {tanyaJawab.map((item, idx) => {
+                    const dot = item.color === 'green' ? 'bg-emerald-500' : item.color === 'blue' ? 'bg-blue-500' : item.color === 'orange' ? 'bg-amber-500' : item.color === 'red' ? 'bg-red-500' : 'bg-slate-400';
+                    const aBg = item.color === 'green' ? 'bg-emerald-50 border-emerald-200' : item.color === 'blue' ? 'bg-blue-50 border-blue-200' : item.color === 'orange' ? 'bg-amber-50 border-amber-200' : item.color === 'red' ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200';
+                    const aText = item.color === 'green' ? 'text-emerald-800' : item.color === 'blue' ? 'text-blue-800' : item.color === 'orange' ? 'text-amber-800' : item.color === 'red' ? 'text-red-800' : 'text-slate-700';
+                    const labelBg = item.color === 'green' ? 'bg-emerald-100 text-emerald-700' : item.color === 'blue' ? 'bg-blue-100 text-blue-700' : item.color === 'orange' ? 'bg-amber-100 text-amber-700' : item.color === 'red' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600';
+                    const statusLabel = item.color === 'green' ? 'Baik' : item.color === 'blue' ? 'Info' : item.color === 'orange' ? 'Perhatian' : item.color === 'red' ? 'Kritis' : 'Netral';
+
+                    return (
+                      <div key={idx} className="group">
+                        {/* Question bubble — right aligned like a chat */}
+                        <div className="flex justify-end mb-2">
+                          <div className="bg-slate-800 text-white rounded-2xl rounded-br-sm px-4 py-3 max-w-[85%] shadow-md">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="bg-amber-400/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">Q{idx + 1}</span>
+                            </div>
+                            <p className="text-sm font-semibold leading-snug">{item.q}</p>
+                          </div>
+                        </div>
+                        {/* Answer bubble — left aligned */}
+                        <div className="flex justify-start">
+                          <div className="flex gap-2.5 max-w-[90%]">
+                            <div className={`w-2 rounded-full shrink-0 ${dot}`}></div>
+                            <div className={`rounded-2xl rounded-bl-sm border px-4 py-3 shadow-sm ${aBg}`}>
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${labelBg}`}>{statusLabel}</span>
+                              </div>
+                              <p className={`text-sm leading-relaxed ${aText}`}>{item.a}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Statistik IPS + Bar Chart */}
               {khs.length > 0 && (
                 <div className="bg-white rounded-xl shadow-md border border-gray-100 p-5">
@@ -512,12 +662,14 @@ export default function CariMahasiswaPage() {
           {/* ════════════════════════ TAB: KELUARGA ════════════════════════ */}
           {activeTab === 'keluarga' && (
             <SectionCard title="Data Keluarga" icon={<UserGroupIcon className="h-5 w-5 text-blue-900" />}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <OrangTuaCard title="Ayah" data={m.ayah} />
                 <OrangTuaCard title="Ibu" data={m.ibu} />
-                {m.wali && m.wali.nama && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-800 mb-3">Wali</h4>
+              </div>
+              {m.wali && m.wali.nama && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div className="bg-gray-50 rounded-lg p-4 h-full">
+                    <h4 className="font-semibold text-gray-800 mb-3 text-base border-b border-gray-200 pb-2">Wali</h4>
                     <InfoRow label="Nama" value={m.wali.nama} />
                     <InfoRow label="HP" value={m.wali.hp} />
                     <InfoRow label="Email" value={m.wali.email} />
@@ -528,8 +680,8 @@ export default function CariMahasiswaPage() {
                     <InfoRow label="Jabatan" value={m.wali.jabatan} />
                     <InfoRow label="Penghasilan" value={m.wali.penghasilan} />
                   </div>
-                )}
-              </div>
+                </div>
+              )}
               {!m.ayah?.nama && !m.ibu?.nama && !m.wali?.nama && (
                 <p className="text-gray-500 text-center py-8">Data keluarga tidak tersedia</p>
               )}
@@ -554,7 +706,6 @@ export default function CariMahasiswaPage() {
                         <th className="px-2 py-2 text-center font-semibold text-blue-900">MK Lulus</th>
                         <th className="px-2 py-2 text-center font-semibold text-blue-900">MK Ulang</th>
                         <th className="px-2 py-2 text-center font-semibold text-blue-900">SKS Ulang</th>
-                        <th className="px-2 py-2 text-center font-semibold text-blue-900">Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -576,9 +727,6 @@ export default function CariMahasiswaPage() {
                           <td className="px-2 py-2 text-center">
                             <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${(k.sks_mk_diulang||0) > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>{k.sks_mk_diulang || 0}</span>
                           </td>
-                          <td className="px-2 py-2 text-center">
-                            <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${k.status_kelulusan === 'Lulus' ? 'bg-green-100 text-green-800' : k.status_kelulusan === 'MBKM' ? 'bg-purple-100 text-purple-800' : 'bg-yellow-100 text-yellow-800'}`}>{k.status_kelulusan || '-'}</span>
-                          </td>
                         </tr>
                       ))}
                       {/* Total Row */}
@@ -593,7 +741,6 @@ export default function CariMahasiswaPage() {
                         <td className="px-2 py-2 text-center text-blue-900">{m.matakuliah_lulus}</td>
                         <td className="px-2 py-2 text-center text-red-700">{totalMKDiulangKHS}</td>
                         <td className="px-2 py-2 text-center text-red-700">{m.sks_mk_diulang}</td>
-                        <td className="px-2 py-2 text-center">—</td>
                       </tr>
                     </tbody>
                   </table>

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/unismuh/sipema/internal/domain"
@@ -71,12 +73,13 @@ func NewGraphQLRepository(endpoint string) *GraphQLRepository {
 	}
 }
 
-// FetchMahasiswaAll fetches all students from the GraphQL API
+// FetchMahasiswaAll fetches all students from the GraphQL API, querying per prodi
 func (r *GraphQLRepository) FetchMahasiswaAll(kodeFakultas string, angkatanFrom, angkatanTo, limit, offset int) ([]domain.Mahasiswa, error) {
 	query := `
-		query MahasiswaAll($kodeFakultas: String!, $angkatanFrom: Int!, $angkatanTo: Int!, $limit: Int!, $offset: Int!) {
+		query MahasiswaAll($kodeFakultas: String!, $kodeProdi: String!, $angkatanFrom: Int!, $angkatanTo: Int!, $limit: Int!, $offset: Int!) {
 			mahasiswaAll(
 				kodeFakultas: $kodeFakultas
+				kodeProdi: $kodeProdi
 				angkatanFrom: $angkatanFrom
 				angkatanTo: $angkatanTo
 				limit: $limit
@@ -96,42 +99,77 @@ func (r *GraphQLRepository) FetchMahasiswaAll(kodeFakultas string, angkatanFrom,
 		}
 	`
 
-	variables := map[string]interface{}{
-		"kodeFakultas": kodeFakultas,
-		"angkatanFrom": angkatanFrom,
-		"angkatanTo":   angkatanTo,
-		"limit":        limit,
-		"offset":       offset,
+	var allMahasiswa []domain.Mahasiswa
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	var firstErr error
+
+	for kodeProdi, namaProdi := range domain.ProdiMapping {
+		wg.Add(1)
+		go func(kodeProdi, namaProdi string) {
+			defer wg.Done()
+
+			variables := map[string]interface{}{
+				"kodeFakultas": kodeFakultas,
+				"kodeProdi":    kodeProdi,
+				"angkatanFrom": angkatanFrom,
+				"angkatanTo":   angkatanTo,
+				"limit":        limit,
+				"offset":       offset,
+			}
+
+			resp, err := r.execute(query, variables)
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("failed to fetch mahasiswa prodi %s (%s): %w", kodeProdi, namaProdi, err)
+				}
+				mu.Unlock()
+				return
+			}
+
+			var result mahasiswaAllResponse
+			if err := json.Unmarshal(resp.Data, &result); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("failed to parse response for prodi %s: %w", kodeProdi, err)
+				}
+				mu.Unlock()
+				return
+			}
+
+			batch := make([]domain.Mahasiswa, 0, len(result.MahasiswaAll))
+			for _, m := range result.MahasiswaAll {
+				batch = append(batch, domain.Mahasiswa{
+					NIM:                     m.NIM,
+					Nama:                    m.Nama,
+					IPK:                     m.IPK,
+					Angkatan:                m.Angkatan,
+					SKSTotal:                m.SKSTotal,
+					SKSDiambil:              m.SKSDiambil,
+					SKSLulus:                m.SKSLulus,
+					MatakuliahLulus:         m.MatakuliahLulus,
+					JumlahMatakuliahDiulang: m.JumlahMatakuliahDiulang,
+					SKSMatakuliahDiulang:    m.SKSMatakuliahDiulang,
+					Jurusan:                 namaProdi,
+				})
+			}
+
+			log.Printf("Fetched %d mahasiswa from prodi %s (%s)", len(batch), kodeProdi, namaProdi)
+
+			mu.Lock()
+			allMahasiswa = append(allMahasiswa, batch...)
+			mu.Unlock()
+		}(kodeProdi, namaProdi)
 	}
 
-	resp, err := r.execute(query, variables)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch mahasiswa: %w", err)
+	wg.Wait()
+
+	if firstErr != nil {
+		return nil, firstErr
 	}
 
-	var result mahasiswaAllResponse
-	if err := json.Unmarshal(resp.Data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Convert to domain model
-	mahasiswaList := make([]domain.Mahasiswa, len(result.MahasiswaAll))
-	for i, m := range result.MahasiswaAll {
-		mahasiswaList[i] = domain.Mahasiswa{
-			NIM:                     m.NIM,
-			Nama:                    m.Nama,
-			IPK:                     m.IPK,
-			Angkatan:                m.Angkatan,
-			SKSTotal:                m.SKSTotal,
-			SKSDiambil:              m.SKSDiambil,
-			SKSLulus:                m.SKSLulus,
-			MatakuliahLulus:         m.MatakuliahLulus,
-			JumlahMatakuliahDiulang: m.JumlahMatakuliahDiulang,
-			SKSMatakuliahDiulang:    m.SKSMatakuliahDiulang,
-		}
-	}
-
-	return mahasiswaList, nil
+	return allMahasiswa, nil
 }
 
 // FetchMahasiswaByNIM fetches a single student with full detail by NIM

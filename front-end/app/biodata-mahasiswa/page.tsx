@@ -18,6 +18,8 @@ interface Mahasiswa {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
+  jurusan: string;
+  jurusan: string;
 }
 
 export default function BiodataMahasiswaPage() {
