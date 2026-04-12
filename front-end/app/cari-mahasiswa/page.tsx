@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { API_BASE_URL } from '@/lib/api';
 import {
     AcademicCapIcon,
     ArrowTrendingDownIcon,
@@ -43,6 +44,53 @@ interface ProdiData {
   id: string; kode_fakultas: string; kode_prodi: string; nama_prodi: string; nama_prodi_eng: string;
   status_prodi: string; email_prodi: string; kode_nim: string; gelar_pendek: string; gelar_panjang: string; gelar_eng: string;
 }
+
+// Backend computed analysis interfaces
+interface Masalah {
+  text: string;
+  severity: string; // high, medium, low
+}
+interface TanyaJawab {
+  question: string;
+  answer: string;
+  color: string; // green, blue, orange, red, gray
+}
+interface IPSStats {
+  average: number;
+  max: number;
+  min: number;
+  last: number;
+  trend: string; // up, down, stable
+}
+interface Analisis {
+  progress_sks: number;
+  efisiensi: number;
+  rasio_ulang: number;
+  tahun_studi: number;
+  semester_aktif: number;
+  sks_per_semester: number;
+  mk_lulus_per_sem: number;
+  tingkat_kelulusan: number;
+  sks_ganjil: number; // SKS in odd semesters
+  sks_genap: number;  // SKS in even semesters
+  ips_stats: IPSStats;
+  estimasi_lulus: string;
+  estimasi_bulan_tahun: string;
+  semester_sisa: number;
+  sks_sisa: number;
+  sks_per_sem_ideal: number;
+  skor_akademik: number;
+  skor_akademik_label: string;
+  nilai_saw: number;
+  is_on_track: boolean;
+  risk_do: boolean;
+  bisa_cum_laude: boolean;
+  masalah: Masalah[];
+  prestasi: string[];
+  rekomendasi: string[];
+  tanya_jawab: TanyaJawab[];
+}
+
 interface MahasiswaDetail {
   nim: string; kode_prodi: string; angkatan: number; nama: string; jenis_kelamin: string;
   tempat_lahir: string; tanggal_lahir: string; nik: string; hp: string; email: string;
@@ -52,6 +100,7 @@ interface MahasiswaDetail {
   matakuliah_lulus: number; jumlah_mk_diulang: number; sks_mk_diulang: number;
   ayah: OrangTua | null; ibu: OrangTua | null; wali: WaliData | null;
   khs: KHS[]; dosen_penasehat: DosenPA | null; prodi: ProdiData | null;
+  analisis?: Analisis; // Backend computed analysis
 }
 
 /* ───────── Helper Components ───────── */
@@ -112,201 +161,126 @@ function GaugeBar({ value, max, label, color }: { value: number; max: number; la
   );
 }
 
+/* ───────── Search Result Interface ───────── */
+interface SearchResult {
+  nim: string;
+  nama: string;
+  ipk: number;
+  angkatan: number;
+  sks_lulus: number;
+  status: string;
+  kategori: string;
+}
+
 /* ───────── Main Page ───────── */
 export default function CariMahasiswaPage() {
-  const [nim, setNim] = useState('');
+  const [query, setQuery] = useState('');
   const [localError, setLocalError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<MahasiswaDetail | null>(null);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [showResults, setShowResults] = useState(false);
   const [activeTab, setActiveTab] = useState<'analisis' | 'akademik' | 'pribadi' | 'keluarga' | 'khs'>('analisis');
+
+  // Check if query looks like NIM (all digits) or name
+  const isNIMQuery = (q: string) => /^\d+$/.test(q.trim());
 
   const handleCari = async () => {
     setLocalError('');
-    if (!nim.trim()) { setLocalError('NIM mahasiswa wajib diisi'); return; }
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) { setLocalError('Masukkan NIM atau nama mahasiswa'); return; }
+    
     setIsLoading(true);
     setData(null);
+    setSearchResults([]);
+    setShowResults(false);
+
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/mahasiswa/${nim.trim()}/detail`);
+      if (isNIMQuery(trimmedQuery)) {
+        // Direct NIM search - get detail immediately
+        const res = await fetch(`${API_BASE_URL}/mahasiswa/${trimmedQuery}/detail`);
+        if (!res.ok) throw new Error('Mahasiswa tidak ditemukan');
+        const result = await res.json();
+        setData(result);
+        setActiveTab('analisis');
+      } else {
+        // Name search - show list of results
+        const res = await fetch(`${API_BASE_URL}/mahasiswa/search?q=${encodeURIComponent(trimmedQuery)}`);
+        if (!res.ok) throw new Error('Pencarian gagal');
+        const result = await res.json();
+        const results = result.data || [];
+        if (results.length === 0) {
+          setLocalError(`Tidak ditemukan mahasiswa dengan nama "${trimmedQuery}"`);
+        } else if (results.length === 1) {
+          // Only one result, show detail directly
+          await loadDetail(results[0].nim);
+        } else {
+          setSearchResults(results);
+          setShowResults(true);
+        }
+      }
+    } catch {
+      setLocalError('Data tidak ditemukan. Pastikan NIM atau nama sudah benar.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadDetail = async (nim: string) => {
+    setIsLoading(true);
+    setShowResults(false);
+    try {
+      const res = await fetch(`${API_BASE_URL}/mahasiswa/${nim}/detail`);
       if (!res.ok) throw new Error('Mahasiswa tidak ditemukan');
       const result = await res.json();
       setData(result);
       setActiveTab('analisis');
     } catch {
-      setLocalError('Mahasiswa dengan NIM tersebut tidak ditemukan. Pastikan NIM sudah benar.');
+      setLocalError('Gagal memuat detail mahasiswa.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleCari(); };
-  const handleKembali = () => { setData(null); setNim(''); };
+  const handleKembali = () => { setData(null); setQuery(''); setSearchResults([]); setShowResults(false); };
 
   /* ════════════════════════════════════════════════ */
   /*  RESULT VIEW — all detail + analysis in one     */
   /* ════════════════════════════════════════════════ */
   if (data) {
     const m = data;
-    const tahunStudi = new Date().getFullYear() - m.angkatan;
-    const progressSKS = m.sks_total > 0 ? Math.min((m.sks_lulus / m.sks_total) * 100, 100) : 0;
-    const rasioUlang = m.sks_diambil > 0 ? ((m.sks_mk_diulang / m.sks_diambil) * 100) : 0;
-    const efisiensi = m.sks_diambil > 0 ? ((m.sks_lulus / m.sks_diambil) * 100) : 0;
+    const a = m.analisis; // Backend computed analysis
+    
+    // Use backend-computed values (fallback to basic calculation if analisis not available)
+    const tahunStudi = a?.tahun_studi ?? (new Date().getFullYear() - m.angkatan);
+    const progressSKS = a?.progress_sks ?? (m.sks_total > 0 ? Math.min((m.sks_lulus / m.sks_total) * 100, 100) : 0);
+    const rasioUlang = a?.rasio_ulang ?? (m.sks_diambil > 0 ? ((m.sks_mk_diulang / m.sks_diambil) * 100) : 0);
+    const efisiensi = a?.efisiensi ?? (m.sks_diambil > 0 ? ((m.sks_lulus / m.sks_diambil) * 100) : 0);
     const dosenNama = m.dosen_penasehat ? `${m.dosen_penasehat.gelar_depan || ''} ${m.dosen_penasehat.nama} ${m.dosen_penasehat.gelar_belakang || ''}`.trim() : '-';
     const khs = m.khs || [];
-    const ipsValues = khs.map(k => k.ips || 0);
-    const ipsAvg = ipsValues.length > 0 ? ipsValues.reduce((a, b) => a + b, 0) / ipsValues.length : 0;
-    const ipsMax = ipsValues.length > 0 ? Math.max(...ipsValues) : 0;
-    const ipsMin = ipsValues.length > 0 ? Math.min(...ipsValues) : 0;
-    const ipsLast = ipsValues.length > 0 ? ipsValues[ipsValues.length - 1] : 0;
-    const totalMKDiulangKHS = khs.reduce((a, k) => a + (k.jumlah_mk_diulang || 0), 0);
-    const semesterAktif = khs.length;
-    const trend = ipsValues.length >= 2 ? (ipsLast > ipsValues[ipsValues.length - 2] + 0.1 ? 'up' : ipsLast < ipsValues[ipsValues.length - 2] - 0.1 ? 'down' : 'stable') : 'stable';
+    
+    // IPS statistics from backend
+    const ipsAvg = a?.ips_stats?.average ?? 0;
+    const ipsMax = a?.ips_stats?.max ?? 0;
+    const ipsMin = a?.ips_stats?.min ?? 0;
+    const ipsLast = a?.ips_stats?.last ?? 0;
+    const trend = a?.ips_stats?.trend ?? 'stable';
+    const totalMKDiulangKHS = khs.reduce((sum, k) => sum + (k.jumlah_mk_diulang || 0), 0);
+    const semesterAktif = a?.semester_aktif ?? khs.length;
+    const estimasiLulus = a?.estimasi_lulus ?? 'Tidak dapat diprediksi';
 
-    // Prediksi kelulusan
-    const sksPerSemester = semesterAktif > 0 ? m.sks_lulus / semesterAktif : 0;
-    const sisaSKS = Math.max(m.sks_total - m.sks_lulus, 0);
-    const semesterSisa = sksPerSemester > 0 ? Math.ceil(sisaSKS / sksPerSemester) : 0;
-    const estimasiLulus = semesterSisa > 0 ? `~${semesterSisa} semester lagi` : m.lulus ? 'Sudah Lulus' : 'Tidak dapat diprediksi';
+    // Use backend-computed analysis data
+    const masalah = a?.masalah ?? [];
+    const prestasi = a?.prestasi ?? [];
+    const rekomendasi = a?.rekomendasi ?? ['Tetap konsisten dan jaga performa akademik saat ini'];
+    const tanyaJawab = a?.tanya_jawab ?? [];
 
-    // Masalah
-    const masalah: { text: string; severity: 'high' | 'medium' | 'low' }[] = [];
-    if (m.ipk < 2.0) masalah.push({ text: `IPK sangat rendah (${m.ipk.toFixed(2)})`, severity: 'high' });
-    else if (m.ipk < 2.5) masalah.push({ text: `IPK di bawah standar (${m.ipk.toFixed(2)})`, severity: 'medium' });
-    if (m.jumlah_mk_diulang >= 5) masalah.push({ text: `${m.jumlah_mk_diulang} MK diulang — banyak pengulangan`, severity: 'high' });
-    else if (m.jumlah_mk_diulang >= 3) masalah.push({ text: `${m.jumlah_mk_diulang} MK diulang`, severity: 'medium' });
-    if (m.sks_mk_diulang >= 15) masalah.push({ text: `${m.sks_mk_diulang} SKS MK diulang (tinggi)`, severity: 'high' });
-    else if (m.sks_mk_diulang >= 8) masalah.push({ text: `${m.sks_mk_diulang} SKS MK diulang`, severity: 'medium' });
-    if (tahunStudi > 6) masalah.push({ text: `Masa studi ${tahunStudi} tahun — sangat lama`, severity: 'high' });
-    else if (tahunStudi > 5) masalah.push({ text: `Masa studi ${tahunStudi} tahun — melebihi batas normal`, severity: 'medium' });
-    if (efisiensi < 70 && m.sks_diambil > 0) masalah.push({ text: `Efisiensi SKS rendah (${efisiensi.toFixed(0)}%)`, severity: 'medium' });
-    if (trend === 'down') masalah.push({ text: 'Tren IPS menurun', severity: 'low' });
-    const expectedProg = Math.min((tahunStudi / 4) * 100, 100);
-    if (progressSKS < expectedProg * 0.5 && m.sks_total > 0) masalah.push({ text: 'Progress SKS sangat lambat', severity: 'high' });
-    else if (progressSKS < expectedProg * 0.7 && m.sks_total > 0) masalah.push({ text: 'Progress SKS lambat', severity: 'medium' });
-
-    // Prestasi
-    const prestasi: string[] = [];
-    if (m.ipk >= 3.75) prestasi.push('Kandidat Cum Laude');
-    else if (m.ipk >= 3.5) prestasi.push('IPK Sangat Memuaskan');
-    else if (m.ipk >= 3.0) prestasi.push('IPK Memuaskan');
-    if (m.jumlah_mk_diulang === 0 && m.sks_diambil > 0) prestasi.push('Tidak ada MK diulang');
-    if (progressSKS >= 90 && !m.lulus) prestasi.push('Hampir menyelesaikan studi');
-    if (trend === 'up') prestasi.push('Tren IPS meningkat');
-    if (efisiensi >= 95 && m.sks_diambil > 0) prestasi.push('Efisiensi SKS sangat baik');
-    if (m.lulus) prestasi.push('Telah menyelesaikan studi');
-    if (ipsMax >= 3.8) prestasi.push(`IPS tertinggi: ${ipsMax.toFixed(2)}`);
-
-    // Rekomendasi
-    const rekomendasi: string[] = [];
-    if (m.ipk < 2.5 && m.ipk > 0) rekomendasi.push('Perlu konsultasi intensif dengan Dosen PA untuk perbaikan strategi belajar');
-    if (m.jumlah_mk_diulang > 3) rekomendasi.push('Fokus prioritaskan mata kuliah yang diulang agar tidak menumpuk');
-    if (tahunStudi > 5 && !m.lulus) rekomendasi.push('Segera susun rencana penyelesaian studi dengan pembimbing akademik');
-    if (trend === 'down') rekomendasi.push('Evaluasi faktor penyebab penurunan IPS dan lakukan perbaikan');
-    if (efisiensi < 80 && m.sks_diambil > 0) rekomendasi.push('Tingkatkan tingkat kelulusan mata kuliah yang diambil');
-    if (m.ipk >= 3.5 && m.jumlah_mk_diulang === 0) rekomendasi.push('Pertahankan performa, pertimbangkan ikut kompetisi akademik');
-    if (progressSKS >= 80 && !m.lulus) rekomendasi.push('Segera selesaikan tugas akhir/skripsi');
-    if (rekomendasi.length === 0) rekomendasi.push('Tetap konsisten dan jaga performa akademik saat ini');
-
-    // Skor kesehatan akademik (0-100)
-    let skor = 50;
-    skor += m.ipk >= 3.5 ? 20 : m.ipk >= 3.0 ? 15 : m.ipk >= 2.5 ? 5 : m.ipk >= 2.0 ? -5 : -15;
-    skor += m.jumlah_mk_diulang === 0 ? 15 : m.jumlah_mk_diulang <= 2 ? 5 : m.jumlah_mk_diulang <= 4 ? -5 : -15;
-    skor += progressSKS >= 80 ? 10 : progressSKS >= 50 ? 5 : -5;
-    skor += efisiensi >= 90 ? 5 : efisiensi >= 75 ? 0 : -5;
-    skor += trend === 'up' ? 5 : trend === 'down' ? -5 : 0;
-    skor = Math.max(0, Math.min(100, skor));
-    const skorLabel = skor >= 80 ? 'Sangat Baik' : skor >= 60 ? 'Baik' : skor >= 40 ? 'Cukup' : skor >= 20 ? 'Kurang' : 'Kritis';
+    // Skor kesehatan akademik from backend
+    const skor = a?.skor_akademik ?? 50;
+    const skorLabel = a?.skor_akademik_label ?? 'Cukup';
     const skorColor = skor >= 80 ? 'text-green-700' : skor >= 60 ? 'text-blue-700' : skor >= 40 ? 'text-yellow-700' : skor >= 20 ? 'text-orange-700' : 'text-red-700';
     const skorBg = skor >= 80 ? 'bg-green-500' : skor >= 60 ? 'bg-blue-500' : skor >= 40 ? 'bg-yellow-500' : skor >= 20 ? 'bg-orange-500' : 'bg-red-500';
-
-    // ─── Prediksi & Tanya Jawab Akademik ───
-    const totalSKSWajib = m.sks_total || 144;
-    const sksSisa = Math.max(totalSKSWajib - m.sks_lulus, 0);
-    const semesterIdeal = 8;
-    const semesterSisaIdeal = Math.max(semesterIdeal - semesterAktif, 0);
-    const sksPerSemIdeal = semesterSisaIdeal > 0 ? Math.ceil(sksSisa / semesterSisaIdeal) : 0;
-    const mkLulusPerSem = semesterAktif > 0 ? (m.matakuliah_lulus / semesterAktif).toFixed(1) : '0';
-    const tingkatKelulusanMK = m.sks_diambil > 0 ? ((m.sks_lulus / m.sks_diambil) * 100) : 0;
-    const semTerbaik = khs.length > 0 ? khs.reduce((best, k) => (k.ips > best.ips ? k : best), khs[0]) : null;
-    const semTerburuk = khs.length > 0 ? khs.reduce((worst, k) => (k.ips < worst.ips ? k : worst), khs[0]) : null;
-    const isOnTrack = !m.lulus && semesterAktif <= semesterIdeal && progressSKS >= ((semesterAktif / semesterIdeal) * 100) * 0.8;
-    const riskDO = m.ipk < 2.0 && tahunStudi > 5 && !m.lulus;
-    const bisaCumLaude = m.ipk >= 3.5 && m.jumlah_mk_diulang === 0;
-    const estimasiBulanTahunLulus = semesterSisa > 0 ? (() => {
-      const now = new Date();
-      const bulanTambahan = semesterSisa * 6;
-      const est = new Date(now.getFullYear(), now.getMonth() + bulanTambahan);
-      return est.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-    })() : null;
-
-    const tanyaJawab: { q: string; a: string; color: string }[] = [];
-
-    // Q: Sudah lulus / Berapa lama lagi lulus?
-    if (m.lulus) {
-      tanyaJawab.push({ q: 'Apakah mahasiswa ini sudah lulus?', a: `Ya, mahasiswa telah menyelesaikan studi${m.tanggal_lulus ? ' pada ' + m.tanggal_lulus : ''}${m.masa_studi ? ' dengan masa studi ' + m.masa_studi : ''}.`, color: 'green' });
-    } else if (sksPerSemester > 0 && sksSisa > 0) {
-      tanyaJawab.push({ q: 'Berapa lama lagi mahasiswa ini bisa lulus?', a: `Dengan rata-rata ${sksPerSemester.toFixed(1)} SKS per semester, mahasiswa membutuhkan sekitar ${semesterSisa} semester lagi (~${(semesterSisa / 2).toFixed(1)} tahun) untuk menyelesaikan sisa ${sksSisa} SKS dari total ${totalSKSWajib} SKS.${estimasiBulanTahunLulus ? ' Estimasi lulus sekitar ' + estimasiBulanTahunLulus + '.' : ''}`, color: semesterSisa <= 2 ? 'green' : semesterSisa <= 4 ? 'blue' : 'orange' });
-    } else if (!m.lulus) {
-      tanyaJawab.push({ q: 'Berapa lama lagi mahasiswa ini bisa lulus?', a: 'Belum dapat diprediksi karena belum ada data semester yang cukup untuk perhitungan.', color: 'gray' });
-    }
-
-    // Q: Rata-rata SKS per semester
-    tanyaJawab.push({ q: 'Berapa rata-rata SKS yang ditempuh per semester?', a: `Rata-rata ${sksPerSemester.toFixed(1)} SKS per semester selama ${semesterAktif} semester aktif. Rata-rata mata kuliah lulus per semester: ${mkLulusPerSem} MK. Total SKS lulus saat ini: ${m.sks_lulus} dari ${totalSKSWajib} SKS.`, color: 'blue' });
-
-    // Q: On-track?
-    if (!m.lulus) {
-      const expectedProgressPct = Math.round((semesterAktif / semesterIdeal) * 100);
-      tanyaJawab.push({ q: 'Apakah mahasiswa ini on-track untuk lulus tepat waktu (4 tahun)?', a: isOnTrack ? `Ya, mahasiswa berada di jalur yang tepat. Sudah menyelesaikan ${progressSKS.toFixed(0)}% SKS di semester ke-${semesterAktif} (target ~${expectedProgressPct}%).` : `Tidak. Baru ${progressSKS.toFixed(0)}% SKS selesai di semester ke-${semesterAktif}, sementara seharusnya sudah sekitar ${expectedProgressPct}% pada titik ini.`, color: isOnTrack ? 'green' : 'orange' });
-    }
-
-    // Q: SKS per semester agar lulus tepat waktu
-    if (!m.lulus && sksSisa > 0) {
-      if (semesterSisaIdeal > 0) {
-        tanyaJawab.push({ q: 'Berapa SKS yang harus diambil per semester agar lulus tepat waktu?', a: `Untuk lulus dalam ${semesterIdeal} semester (4 tahun), mahasiswa harus mengambil minimal ${sksPerSemIdeal} SKS per semester selama ${semesterSisaIdeal} semester ke depan. ${sksPerSemIdeal > 24 ? 'Jumlah ini melebihi batas normal (20-24 SKS), sehingga kelulusan tepat waktu kemungkinan sulit tercapai.' : sksPerSemIdeal > 20 ? 'Beban ini cukup berat namun masih memungkinkan.' : 'Target ini sangat realistis dan bisa dicapai.'}`, color: sksPerSemIdeal > 24 ? 'red' : sksPerSemIdeal > 20 ? 'orange' : 'green' });
-      } else {
-        tanyaJawab.push({ q: 'Berapa SKS yang harus diambil per semester agar segera lulus?', a: `Mahasiswa sudah melewati batas ${semesterIdeal} semester ideal. Sisa ${sksSisa} SKS harus diselesaikan secepatnya. Dengan mengambil ~${Math.min(24, sksSisa)} SKS per semester, dibutuhkan sekitar ${Math.ceil(sksSisa / 20)} semester lagi.`, color: 'red' });
-      }
-    }
-
-    // Q: Semester terbaik
-    if (semTerbaik && khs.length > 1) {
-      tanyaJawab.push({ q: 'Semester mana yang memiliki performa terbaik?', a: `Semester terbaik adalah ${semTerbaik.tahun_akademik} dengan IPS ${semTerbaik.ips.toFixed(2)}, lulus ${semTerbaik.matakuliah_lulus} MK (${semTerbaik.sks_lulus} SKS).`, color: 'green' });
-    }
-
-    // Q: Semester terburuk
-    if (semTerburuk && khs.length > 1 && semTerburuk.tahun_akademik !== semTerbaik?.tahun_akademik) {
-      tanyaJawab.push({ q: 'Semester mana yang memiliki performa terburuk?', a: `Semester terburuk adalah ${semTerburuk.tahun_akademik} dengan IPS ${semTerburuk.ips.toFixed(2)}${semTerburuk.jumlah_mk_diulang > 0 ? ', dengan ' + semTerburuk.jumlah_mk_diulang + ' MK yang harus diulang' : ''}.`, color: 'red' });
-    }
-
-    // Q: Tingkat kelulusan MK
-    tanyaJawab.push({ q: 'Berapa tingkat kelulusan mata kuliah?', a: `Tingkat kelulusan (efisiensi) adalah ${tingkatKelulusanMK.toFixed(1)}%. Dari setiap SKS yang diambil, ${tingkatKelulusanMK.toFixed(0)}% berhasil lulus. ${tingkatKelulusanMK >= 95 ? 'Sangat baik!' : tingkatKelulusanMK >= 85 ? 'Cukup baik.' : tingkatKelulusanMK >= 70 ? 'Perlu ditingkatkan.' : 'Perlu perhatian serius.'}`, color: tingkatKelulusanMK >= 90 ? 'green' : tingkatKelulusanMK >= 75 ? 'blue' : 'orange' });
-
-    // Q: Risiko DO
-    if (!m.lulus) {
-      tanyaJawab.push({ q: 'Apakah ada risiko drop out (DO)?', a: riskDO ? `Ya, ada indikasi risiko DO. IPK mahasiswa ${m.ipk.toFixed(2)} (di bawah 2.0) dan masa studi sudah ${tahunStudi} tahun. Perlu penanganan segera dari dosen PA.` : `Tidak ada indikasi risiko DO saat ini. ${m.ipk >= 2.5 ? 'IPK dalam batas aman.' : m.ipk >= 2.0 ? 'Namun IPK perlu dijaga agar tidak turun di bawah 2.0.' : 'Namun IPK perlu segera ditingkatkan.'}`, color: riskDO ? 'red' : 'green' });
-    }
-
-    // Q: Peluang cum laude
-    if (!m.lulus) {
-      tanyaJawab.push({ q: 'Apakah mahasiswa ini berpeluang mendapat predikat cum laude?', a: bisaCumLaude ? `Ya, berpeluang! IPK saat ini ${m.ipk.toFixed(2)} (>= 3.50) dan tidak ada mata kuliah yang diulang. Pertahankan performa ini!` : m.ipk >= 3.5 && m.jumlah_mk_diulang > 0 ? `Tidak bisa cum laude karena ada ${m.jumlah_mk_diulang} MK yang diulang, meskipun IPK ${m.ipk.toFixed(2)} sudah memenuhi syarat.` : m.ipk < 3.5 && m.ipk >= 3.0 ? `Belum memenuhi syarat cum laude (IPK ${m.ipk.toFixed(2)}, syarat >= 3.50). Masih ada peluang jika performa ditingkatkan secara konsisten.` : `Belum memenuhi syarat cum laude (IPK ${m.ipk.toFixed(2)}, syarat >= 3.50).`, color: bisaCumLaude ? 'green' : m.ipk >= 3.0 ? 'blue' : 'gray' });
-    }
-
-    // Q: Tren performa
-    tanyaJawab.push({ q: 'Bagaimana tren performa akademik mahasiswa ini?', a: trend === 'up' ? `Performa akademik menunjukkan tren meningkat. IPS terakhir: ${ipsLast.toFixed(2)} (naik dari semester sebelumnya). Hal positif yang perlu dipertahankan.` : trend === 'down' ? `Performa akademik menunjukkan tren menurun. IPS terakhir: ${ipsLast.toFixed(2)} (turun dari semester sebelumnya). Perlu evaluasi dan perbaikan strategi belajar.` : `Performa akademik relatif stabil. IPS terakhir: ${ipsLast.toFixed(2)}. ${ipsLast >= 3.0 ? 'Stabil di level yang baik.' : 'Perlu upaya untuk peningkatan.'}`, color: trend === 'up' ? 'green' : trend === 'down' ? 'red' : 'blue' });
-
-    // Q: Dampak MK diulang
-    if (m.jumlah_mk_diulang > 0) {
-      tanyaJawab.push({ q: 'Bagaimana dampak mata kuliah yang diulang?', a: `Mahasiswa memiliki ${m.jumlah_mk_diulang} MK yang diulang (${m.sks_mk_diulang} SKS), mengkonsumsi ${rasioUlang.toFixed(1)}% dari total SKS yang diambil. ${rasioUlang > 15 ? 'Rasio ini sangat tinggi dan memperlambat kelulusan secara signifikan.' : rasioUlang > 8 ? 'Rasio ini cukup berpengaruh terhadap kecepatan penyelesaian studi.' : 'Dampaknya masih terkelola, namun tetap perlu diminimalisir.'}`, color: rasioUlang > 15 ? 'red' : rasioUlang > 8 ? 'orange' : 'blue' });
-    }
-
-    // Q: Beban studi
-    if (!m.lulus && khs.length > 0) {
-      const sksAmbilTerakhir = khs[khs.length - 1].sks_diambil;
-      const batasMaxSKS = m.ipk >= 3.0 ? 24 : m.ipk >= 2.5 ? 21 : 18;
-      tanyaJawab.push({ q: 'Berapa batas SKS yang bisa diambil berdasarkan IPK?', a: `Dengan IPK ${m.ipk.toFixed(2)}, mahasiswa dapat mengambil maksimal ${batasMaxSKS} SKS per semester (IPK >= 3.0: 24 SKS, IPK 2.5-2.99: 21 SKS, IPK < 2.5: 18 SKS). Semester terakhir mengambil ${sksAmbilTerakhir} SKS.${sksAmbilTerakhir > batasMaxSKS ? ' Perlu perhatian, melebihi batas yang disarankan.' : ''}`, color: 'blue' });
-    }
-
-    // Q: Sudah berapa semester + berapa tahun
-    tanyaJawab.push({ q: 'Sudah berapa lama mahasiswa ini menempuh studi?', a: `Mahasiswa angkatan ${m.angkatan} telah menempuh ${semesterAktif} semester aktif (${tahunStudi} tahun). ${m.lulus ? 'Sudah menyelesaikan studi.' : tahunStudi <= 4 ? 'Masih dalam batas waktu normal.' : tahunStudi <= 6 ? 'Sudah melewati batas normal 4 tahun, namun masih dalam toleransi.' : 'Sudah jauh melewati batas normal. Perlu perhatian khusus.'}`, color: tahunStudi <= 4 ? 'green' : tahunStudi <= 6 ? 'orange' : 'red' });
 
     const tabs = [
       { id: 'analisis' as const, label: 'Analisis Status' },
@@ -403,7 +377,7 @@ export default function CariMahasiswaPage() {
               {/* Progress Bars */}
               <div className="bg-white rounded-xl shadow-md border border-gray-100 p-5 space-y-3">
                 <h3 className="text-sm font-bold text-gray-900 mb-2">Progress Akademik</h3>
-                <GaugeBar value={m.sks_lulus} max={m.sks_total || 144} label="SKS Lulus" color={progressSKS >= 75 ? 'bg-green-500' : progressSKS >= 50 ? 'bg-blue-500' : 'bg-orange-500'} />
+                <GaugeBar value={m.sks_lulus} max={m.sks_total || 156} label="SKS Lulus" color={progressSKS >= 75 ? 'bg-green-500' : progressSKS >= 50 ? 'bg-blue-500' : 'bg-orange-500'} />
                 <GaugeBar value={m.matakuliah_lulus} max={Math.max(m.matakuliah_lulus + m.jumlah_mk_diulang, m.matakuliah_lulus, 1)} label="MK Lulus" color="bg-blue-500" />
                 <div>
                   <div className="flex justify-between text-xs mb-1">
@@ -422,6 +396,55 @@ export default function CariMahasiswaPage() {
                   <span className="text-xs font-bold text-blue-800">{estimasiLulus}</span>
                 </div>
               </div>
+
+              {/* SKS Ganjil & Genap */}
+              {(m.analisis?.sks_ganjil !== undefined || m.analisis?.sks_genap !== undefined) && (
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-md border border-indigo-100 p-5">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <BookOpenIcon className="h-5 w-5 text-indigo-600" />
+                    <h3 className="text-sm font-bold text-indigo-900">Distribusi SKS per Semester</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white rounded-lg p-4 border border-indigo-200 shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-indigo-600 font-medium uppercase">Semester Ganjil</span>
+                        <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full">1, 3, 5, 7</span>
+                      </div>
+                      <p className="text-2xl font-bold text-indigo-900">{m.analisis?.sks_ganjil || 0} <span className="text-sm font-normal text-indigo-600">SKS</span></p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-purple-200 shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-purple-600 font-medium uppercase">Semester Genap</span>
+                        <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-full">2, 4, 6, 8</span>
+                      </div>
+                      <p className="text-2xl font-bold text-purple-900">{m.analisis?.sks_genap || 0} <span className="text-sm font-normal text-purple-600">SKS</span></p>
+                    </div>
+                  </div>
+                  {/* Progress comparison */}
+                  <div className="mt-4 pt-4 border-t border-indigo-200">
+                    <div className="flex items-center justify-between text-xs mb-2">
+                      <span className="text-indigo-700 font-medium">Perbandingan</span>
+                      <span className="font-bold text-indigo-900">
+                        {((m.analisis?.sks_ganjil || 0) + (m.analisis?.sks_genap || 0))} SKS Total
+                      </span>
+                    </div>
+                    <div className="flex h-3 rounded-full overflow-hidden shadow-inner">
+                      <div 
+                        className="bg-indigo-500 transition-all duration-500" 
+                        style={{ width: `${((m.analisis?.sks_ganjil || 0) / Math.max((m.analisis?.sks_ganjil || 0) + (m.analisis?.sks_genap || 0), 1)) * 100}%` }}
+                      ></div>
+                      <div 
+                        className="bg-purple-500 transition-all duration-500" 
+                        style={{ width: `${((m.analisis?.sks_genap || 0) / Math.max((m.analisis?.sks_ganjil || 0) + (m.analisis?.sks_genap || 0), 1)) * 100}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[10px] text-indigo-600">Ganjil: {(((m.analisis?.sks_ganjil || 0) / Math.max((m.analisis?.sks_ganjil || 0) + (m.analisis?.sks_genap || 0), 1)) * 100).toFixed(0)}%</span>
+                      <span className="text-[10px] text-purple-600">Genap: {(((m.analisis?.sks_genap || 0) / Math.max((m.analisis?.sks_ganjil || 0) + (m.analisis?.sks_genap || 0), 1)) * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Masalah & Prestasi */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -522,7 +545,7 @@ export default function CariMahasiswaPage() {
                             <div className="flex items-center gap-2 mb-1">
                               <span className="bg-amber-400/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">Q{idx + 1}</span>
                             </div>
-                            <p className="text-sm font-semibold leading-snug">{item.q}</p>
+                            <p className="text-sm font-semibold leading-snug">{item.question}</p>
                           </div>
                         </div>
                         {/* Answer bubble — left aligned */}
@@ -533,7 +556,7 @@ export default function CariMahasiswaPage() {
                               <div className="flex items-center gap-2 mb-1.5">
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${labelBg}`}>{statusLabel}</span>
                               </div>
-                              <p className={`text-sm leading-relaxed ${aText}`}>{item.a}</p>
+                              <p className={`text-sm leading-relaxed ${aText}`}>{item.answer}</p>
                             </div>
                           </div>
                         </div>
@@ -779,7 +802,7 @@ export default function CariMahasiswaPage() {
             <MagnifyingGlassIcon className="h-7 w-7 text-blue-900" />
             <div>
               <h1 className="text-xl font-bold text-blue-900">Cari Data Mahasiswa</h1>
-              <p className="text-sm text-blue-600">Masukkan NIM untuk melihat detail lengkap & analisis</p>
+              <p className="text-sm text-blue-600">Masukkan NIM atau nama untuk melihat detail lengkap & analisis</p>
             </div>
           </div>
         </div>
@@ -793,7 +816,7 @@ export default function CariMahasiswaPage() {
               <MagnifyingGlassIcon className="h-8 w-8 text-white" />
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">Pencarian Data Mahasiswa</h2>
-            <p className="text-blue-200 text-sm sm:text-base mb-8 max-w-lg mx-auto">Masukkan NIM untuk menampilkan detail lengkap, data pribadi, keluarga, riwayat KHS, dan analisis performa akademik</p>
+            <p className="text-blue-200 text-sm sm:text-base mb-8 max-w-lg mx-auto">Masukkan NIM atau nama mahasiswa untuk menampilkan detail lengkap, data pribadi, keluarga, riwayat KHS, dan analisis performa akademik</p>
 
             <div className="max-w-xl mx-auto">
               {localError && (
@@ -805,8 +828,8 @@ export default function CariMahasiswaPage() {
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
-                  <IdentificationIcon className="h-5 w-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
-                  <input id="nim" type="text" value={nim} onChange={(e) => setNim(e.target.value)} onKeyDown={handleKeyDown} placeholder="Masukkan NIM mahasiswa..." className="w-full pl-12 pr-4 py-3.5 border-0 rounded-xl text-sm bg-white text-gray-900 shadow-lg focus:ring-2 focus:ring-blue-400 placeholder-gray-400" disabled={isLoading} />
+                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
+                  <input id="query" type="text" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={handleKeyDown} placeholder="Masukkan NIM atau nama mahasiswa..." className="w-full pl-12 pr-4 py-3.5 border-0 rounded-xl text-sm bg-white text-gray-900 shadow-lg focus:ring-2 focus:ring-blue-400 placeholder-gray-400" disabled={isLoading} />
                 </div>
                 <button type="button" onClick={handleCari} disabled={isLoading} className="flex items-center justify-center px-6 py-3.5 bg-white text-blue-900 font-bold rounded-xl hover:bg-blue-50 transition-colors disabled:opacity-50 text-sm shadow-lg whitespace-nowrap">
                   {isLoading ? (
@@ -821,41 +844,115 @@ export default function CariMahasiswaPage() {
           </div>
         </div>
 
-        {/* Feature Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-          {[
-            { icon: <ShieldCheckIcon className="h-7 w-7 text-blue-600" />, title: 'Analisis Status', desc: 'Skor kesehatan akademik, deteksi masalah, dan rekomendasi perbaikan', bg: 'bg-blue-50 border-blue-200' },
-            { icon: <AcademicCapIcon className="h-7 w-7 text-emerald-600" />, title: 'Data Akademik', desc: 'SKS, IPK, info kelulusan, dosen PA, dan program studi', bg: 'bg-emerald-50 border-emerald-200' },
-            { icon: <UserIcon className="h-7 w-7 text-purple-600" />, title: 'Data Pribadi & Keluarga', desc: 'Identitas, kontak, serta data orang tua dan wali', bg: 'bg-purple-50 border-purple-200' },
-            { icon: <BookOpenIcon className="h-7 w-7 text-amber-600" />, title: 'Riwayat KHS', desc: 'Kartu Hasil Studi per semester lengkap dengan grafik IPS', bg: 'bg-amber-50 border-amber-200' },
-          ].map((f, i) => (
-            <div key={i} className={`rounded-xl border p-4 ${f.bg}`}>
-              <div className="mb-2">{f.icon}</div>
-              <h3 className="font-bold text-gray-900 text-sm mb-1">{f.title}</h3>
-              <p className="text-xs text-gray-600 leading-relaxed hidden sm:block">{f.desc}</p>
+        {/* Search Results Inline */}
+        {showResults && searchResults.length > 0 && (
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden mb-4">
+            <div className="bg-blue-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-blue-900 text-sm">Hasil Pencarian</h3>
+                <p className="text-xs text-blue-600">Ditemukan {searchResults.length} mahasiswa dengan nama &quot;{query}&quot;</p>
+              </div>
+              <button onClick={() => { setShowResults(false); setSearchResults([]); }} className="text-gray-400 hover:text-gray-600">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-          ))}
-        </div>
+            <div className="overflow-x-auto max-h-96 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-gray-50">
+                  <tr className="border-b border-gray-200">
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">No</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Nama</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">NIM</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Angkatan</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">IPK</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {searchResults.map((m, idx) => (
+                    <tr key={m.nim} className="border-b border-gray-100 hover:bg-blue-50/50 transition-colors">
+                      <td className="px-4 py-3 text-gray-600">{idx + 1}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{m.nama}</td>
+                      <td className="px-4 py-3 text-gray-600">{m.nim}</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                          {m.angkatan}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          (m.ipk || 0) >= 3.5 ? 'bg-green-100 text-green-800' :
+                          (m.ipk || 0) >= 3.0 ? 'bg-blue-100 text-blue-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {(m.ipk || 0).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          m.status === 'Aktif' ? 'bg-green-100 text-green-800' :
+                          m.status === 'Alumni' ? 'bg-purple-100 text-purple-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {m.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button 
+                          onClick={() => loadDetail(m.nim)}
+                          className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          Lihat Detail
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-        {/* Instructions */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 sm:p-6">
-          <h3 className="font-bold text-gray-900 text-sm mb-3">Cara Menggunakan</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Feature Cards - hide when showing results */}
+        {!showResults && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             {[
-              { step: '1', title: 'Masukkan NIM', desc: 'Ketik NIM mahasiswa pada kolom pencarian di atas' },
-              { step: '2', title: 'Klik Cari', desc: 'Tekan tombol cari atau Enter untuk memulai pencarian' },
-              { step: '3', title: 'Lihat Hasil', desc: 'Semua data akan ditampilkan dalam tab yang terorganisir' },
-            ].map((s, i) => (
-              <div key={i} className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-blue-900 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">{s.step}</div>
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">{s.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.desc}</p>
-                </div>
+              { icon: <ShieldCheckIcon className="h-7 w-7 text-blue-600" />, title: 'Analisis Status', desc: 'Skor kesehatan akademik, deteksi masalah, dan rekomendasi perbaikan', bg: 'bg-blue-50 border-blue-200' },
+              { icon: <AcademicCapIcon className="h-7 w-7 text-emerald-600" />, title: 'Data Akademik', desc: 'SKS, IPK, info kelulusan, dosen PA, dan program studi', bg: 'bg-emerald-50 border-emerald-200' },
+              { icon: <UserIcon className="h-7 w-7 text-purple-600" />, title: 'Data Pribadi & Keluarga', desc: 'Identitas, kontak, serta data orang tua dan wali', bg: 'bg-purple-50 border-purple-200' },
+              { icon: <BookOpenIcon className="h-7 w-7 text-amber-600" />, title: 'Riwayat KHS', desc: 'Kartu Hasil Studi per semester lengkap dengan grafik IPS', bg: 'bg-amber-50 border-amber-200' },
+            ].map((f, i) => (
+              <div key={i} className={`rounded-xl border p-4 ${f.bg}`}>
+                <div className="mb-2">{f.icon}</div>
+                <h3 className="font-bold text-gray-900 text-sm mb-1">{f.title}</h3>
+                <p className="text-xs text-gray-600 leading-relaxed hidden sm:block">{f.desc}</p>
               </div>
             ))}
           </div>
-        </div>
+        )}
+
+        {/* Instructions - hide when showing results */}
+        {!showResults && (
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 sm:p-6">
+            <h3 className="font-bold text-gray-900 text-sm mb-3">Cara Menggunakan</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { step: '1', title: 'Masukkan NIM atau Nama', desc: 'Ketik NIM lengkap atau nama mahasiswa pada kolom pencarian' },
+                { step: '2', title: 'Klik Cari', desc: 'Tekan tombol cari atau Enter untuk memulai pencarian' },
+                { step: '3', title: 'Lihat Hasil', desc: 'Pilih mahasiswa dari daftar hasil, lalu lihat detail lengkapnya' },
+              ].map((s, i) => (
+                <div key={i} className="flex items-start space-x-3">
+                  <div className="w-8 h-8 bg-blue-900 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">{s.step}</div>
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">{s.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

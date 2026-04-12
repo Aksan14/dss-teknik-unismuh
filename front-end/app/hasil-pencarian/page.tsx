@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { API_BASE_URL } from '@/lib/api';
 import { ChevronLeftIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -18,7 +19,6 @@ interface Mahasiswa {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
-  jurusan: string;
   jurusan: string;
 }
 
@@ -43,7 +43,7 @@ function HasilPencarian() {
     if (!query) { setLoading(false); return; }
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/mahasiswa/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`${API_BASE_URL}/mahasiswa/search?q=${encodeURIComponent(query)}`);
       const result = await res.json();
       setAllData(result.data || []);
     } catch (error) {

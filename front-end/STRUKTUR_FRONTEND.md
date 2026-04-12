@@ -53,7 +53,7 @@ front-end/
 Menu dropdown yang bisa di-expand/collapse, berisi 7 sub-menu:
 1. **Data Lengkap** (`/data-lengkap`) - Seluruh data mahasiswa
 2. **Data Per Angkatan** (`/data-perangkatan`) - Data per tahun angkatan
-3. **Data Alumni** (`/data-alumni`) - Data lulusan (SKS ≥ 144)
+3. **Data Alumni** (`/data-alumni`) - Data lulusan (SKS ≥ 156)
 4. **Prestasi Mahasiswa** (`/prestasi-mahasiswa`) - Mahasiswa berprestasi (IPK ≥ 3.5)
 5. **Penerima Beasiswa** (`/penerima-beasiswa`) - Kandidat penerima beasiswa
 6. **Mahasiswa Aktif** (`/mahasiswa-aktif`) - Data mahasiswa aktif

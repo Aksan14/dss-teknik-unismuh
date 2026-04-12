@@ -18,6 +18,9 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 
+	// Log the angkatan range (7 years from current year)
+	log.Printf("[Config] Data mahasiswa: 7 tahun terakhir (angkatan %d-%d)", cfg.AngkatanFrom, cfg.AngkatanTo)
+
 	// Initialize dependencies
 	graphqlRepo := repository.NewGraphQLRepository(cfg.GraphQLEndpoint)
 	mahasiswaService := service.NewMahasiswaService(graphqlRepo).

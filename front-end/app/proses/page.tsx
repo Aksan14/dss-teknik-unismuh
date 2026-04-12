@@ -1,4 +1,5 @@
 ﻿'use client';
+import { API_BASE_URL } from '@/lib/api';
 import { CalculatorIcon, ChartBarIcon, CheckCircleIcon, ExclamationTriangleIcon, FunnelIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -33,7 +34,6 @@ interface HasilSAW {
   kategori: string;
   jurusan: string;
   ranking: number;
-  jurusan: string;
 }
 
 export default function Proses() {
@@ -54,8 +54,8 @@ export default function Proses() {
       setLoading(true);
       setError('');
       const [resMahasiswa, resHasil] = await Promise.all([
-        fetch('http://localhost:8080/api/v1/mahasiswa/aktif'),
-        fetch('http://localhost:8080/api/v1/analisis/saw', { method: 'POST' }),
+        fetch(`${API_BASE_URL}/mahasiswa/aktif`),
+        fetch(`${API_BASE_URL}/analisis/saw`, { method: 'POST' }),
       ]);
       if (!resMahasiswa.ok || !resHasil.ok) throw new Error('Gagal mengambil data dari server');
       const rawMahasiswa = await resMahasiswa.json();

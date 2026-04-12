@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { API_BASE_URL } from '@/lib/api';
 import { ChatBubbleLeftRightIcon, CheckIcon, ChevronLeftIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PhoneIcon, ShieldExclamationIcon, StarIcon, UsersIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -145,7 +146,7 @@ export default function PeninjauanMahasiswa() {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000);
-      const res = await fetch('http://localhost:8080/api/v1/mahasiswa?limit=10000', { signal: controller.signal });
+      const res = await fetch(`${API_BASE_URL}/mahasiswa?limit=10000`, { signal: controller.signal });
       clearTimeout(timeout);
       if (!res.ok) throw new Error('Server error: ' + res.status);
       const result = await res.json();
@@ -239,7 +240,7 @@ export default function PeninjauanMahasiswa() {
       const batch = selectedList.slice(i, i + 5);
       const promises = batch.map(async (m) => {
         try {
-          const res = await fetch(`http://localhost:8080/api/v1/mahasiswa/${m.nim}/detail`);
+          const res = await fetch(`${API_BASE_URL}/mahasiswa/${m.nim}/detail`);
           if (!res.ok) return null;
           const detail: DetailMahasiswa = await res.json();
           const pesan = activeTab === 'bermasalah' ? generatePesanMasalah(detail) : generatePesanPrestasi(detail);
@@ -288,7 +289,7 @@ export default function PeninjauanMahasiswa() {
     setModalOpen(true);
     setModalLoading(true);
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/mahasiswa/${m.nim}/detail`);
+      const res = await fetch(`${API_BASE_URL}/mahasiswa/${m.nim}/detail`);
       if (!res.ok) throw new Error('Gagal');
       setSelectedDetail(await res.json());
     } catch { setSelectedDetail(null); }

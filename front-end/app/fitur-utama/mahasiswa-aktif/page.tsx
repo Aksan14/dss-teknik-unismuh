@@ -1,15 +1,14 @@
 'use client';
 
 import { API_BASE_URL } from '@/lib/api';
-import { getLast7Years } from '@/lib/years';
 import {
-    ChevronDoubleLeftIcon,
-    ChevronDoubleRightIcon,
-    ChevronLeftIcon,
-    HomeIcon,
+  HomeIcon,
+  ChevronLeftIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 
 interface Mahasiswa {
   nim: string;
@@ -24,14 +23,11 @@ interface Mahasiswa {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
-  jurusan: string;
 }
 
-const YEARS = getLast7Years();
 const PER_PAGE = 30;
 
-export default function DataPerangkatan() {
-  const [activeYear, setActiveYear] = useState(YEARS[0]);
+export default function MahasiswaAktif() {
   const [data, setData] = useState<Mahasiswa[]>([]);
   const [allData, setAllData] = useState<Mahasiswa[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +37,7 @@ export default function DataPerangkatan() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/mahasiswa/angkatan/${activeYear}`);
+      const response = await fetch(`${API_BASE_URL}/mahasiswa/aktif`);
       const result = await response.json();
       setAllData(result.data || []);
     } catch (error) {
@@ -50,7 +46,7 @@ export default function DataPerangkatan() {
     } finally {
       setLoading(false);
     }
-  }, [activeYear]);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -73,7 +69,7 @@ export default function DataPerangkatan() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, activeYear]);
+  }, [search]);
 
   const handlePrevPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
@@ -95,57 +91,41 @@ export default function DataPerangkatan() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-md border-b border-blue-100">
+      <header className="bg-white shadow-md border-b border-green-100">
         <div className="px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center space-x-3">
-            <HomeIcon className="h-8 w-8 text-blue-600" />
+            <HomeIcon className="h-8 w-8 text-green-600" />
             <div>
-              <h1 className="text-2xl font-bold text-blue-900">Data Perangkatan Mahasiswa</h1>
-              <p className="text-sm text-blue-600">Berdasarkan Tahun Angkatan</p>
+              <h1 className="text-2xl font-bold text-green-900">Mahasiswa Aktif</h1>
+              <p className="text-sm text-green-600">Data mahasiswa dengan status aktif</p>
             </div>
           </div>
         </div>
       </header>
 
       <main className="px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/" className="inline-flex items-center text-blue-600 hover:text-blue-900 mb-6">
+        <Link href="/fitur-utama" className="inline-flex items-center text-blue-600 hover:text-blue-900 mb-6">
           <ChevronLeftIcon className="h-5 w-5 mr-1" />
-          Kembali ke Dashboard
+          Kembali ke Fitur Utama
         </Link>
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Pilih Tahun Angkatan</h3>
-          <div className="grid grid-cols-3 md:grid-cols-7 gap-2 mb-4">
-            {YEARS.map((year) => (
-              <button
-                key={year}
-                onClick={() => setActiveYear(year)}
-                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
-                  activeYear === year
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {year}
-              </button>
-            ))}
-          </div>
           <input
             type="text"
             placeholder="Cari berdasarkan nama atau NIM..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent"
           />
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg shadow-md p-6 mb-6">
+        <div className="bg-green-50 border border-green-200 rounded-lg shadow-md p-6 mb-6">
           <div className="flex flex-wrap gap-4 justify-between items-center">
-            <p className="text-blue-900 font-semibold">
-              Mahasiswa Angkatan {activeYear}: <span className="text-2xl text-blue-600">{loading ? '-' : filteredData.length.toLocaleString()}</span>
+            <p className="text-green-900 font-semibold">
+              Total Mahasiswa Aktif: <span className="text-2xl text-green-600">{loading ? '-' : filteredData.length.toLocaleString()}</span>
             </p>
             {totalPages > 1 && (
-              <p className="text-blue-700">
+              <p className="text-green-700">
                 Halaman <span className="font-bold">{currentPage}</span> dari <span className="font-bold">{totalPages}</span>
               </p>
             )}
@@ -156,31 +136,30 @@ export default function DataPerangkatan() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-blue-100 border-b border-gray-200">
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">No</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Nama</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">NIM</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Jurusan</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">IPK</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">SKS Lulus</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">SKS Diambil</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">MK Lulus</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">MK Diulang</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">SKS MK Diulang</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Status</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Kategori</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Aksi</th>
+                <tr className="bg-green-100 border-b border-gray-200">
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">No</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">Nama</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">NIM</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">Angkatan</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">IPK</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">SKS Lulus</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">SKS Diambil</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">MK Lulus</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">MK Diulang</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">SKS MK Diulang</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">Kategori</th>
+                  <th className="px-6 py-4 text-left font-semibold text-green-900">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-8 text-center text-gray-500">Loading data...</td>
+                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">Loading data...</td>
                   </tr>
                 ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
-                      {search ? 'Tidak ada data yang cocok' : `Tidak ada mahasiswa angkatan ${activeYear}`}
+                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
+                      {search ? 'Tidak ada data yang cocok' : 'Tidak ada mahasiswa aktif'}
                     </td>
                   </tr>
                 ) : (
@@ -189,7 +168,11 @@ export default function DataPerangkatan() {
                       <td className="px-6 py-4 text-gray-900">{(currentPage - 1) * PER_PAGE + idx + 1}</td>
                       <td className="px-6 py-4 text-gray-900 font-medium">{mahasiswa.nama}</td>
                       <td className="px-6 py-4 text-gray-900">{mahasiswa.nim}</td>
-                      <td className="px-6 py-4 text-gray-900 text-xs">{mahasiswa.jurusan}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                          {mahasiswa.angkatan}
+                        </span>
+                      </td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                           (mahasiswa.ipk || 0) >= 3.5 ? 'bg-green-100 text-green-800' :
@@ -210,15 +193,6 @@ export default function DataPerangkatan() {
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${mahasiswa.sks_mk_diulang > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
                           {mahasiswa.sks_mk_diulang}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          mahasiswa.status === 'Aktif' ? 'bg-green-100 text-green-800' :
-                          mahasiswa.status === 'Alumni' ? 'bg-purple-100 text-purple-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {mahasiswa.status}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -254,7 +228,7 @@ export default function DataPerangkatan() {
                     <ChevronLeftIcon className="h-4 w-4" />
                   </button>
                   {getPageNumbers().map((page) => (
-                    <button key={page} onClick={() => setCurrentPage(page)} disabled={loading} className={`px-3 py-1 rounded-lg border ${page === currentPage ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-300 hover:bg-gray-100'} disabled:opacity-50`}>
+                    <button key={page} onClick={() => setCurrentPage(page)} disabled={loading} className={`px-3 py-1 rounded-lg border ${page === currentPage ? 'bg-green-500 text-white border-green-500' : 'border-gray-300 hover:bg-gray-100'} disabled:opacity-50`}>
                       {page}
                     </button>
                   ))}

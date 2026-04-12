@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { API_BASE_URL } from '@/lib/api';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { UserIcon, AcademicCapIcon, ChevronLeftIcon, ExclamationTriangleIcon, PhoneIcon, EnvelopeIcon, IdentificationIcon, BookOpenIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
@@ -98,7 +99,7 @@ function DetailMahasiswa() {
     if (!nim) { setError('NIM tidak ditemukan di URL'); setLoading(false); return; }
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/mahasiswa/${nim}/detail`);
+      const res = await fetch(`${API_BASE_URL}/mahasiswa/${nim}/detail`);
       if (!res.ok) throw new Error('Data tidak ditemukan');
       const result = await res.json();
       setData(result);

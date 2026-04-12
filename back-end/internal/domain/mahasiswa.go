@@ -18,6 +18,8 @@ type Mahasiswa struct {
 	SKSTotal                int     `json:"sksTotal"`
 	SKSDiambil              int     `json:"sksDiambil"`
 	SKSLulus                int     `json:"sksLulus"`
+	SKSBerjalan             int     `json:"sksBerjalan"`     // SKS currently being taken - determines active status
+	AktifTerakhirTa         string  `json:"aktifTerakhirTa"` // Last active academic period (e.g., "20252")
 	MatakuliahLulus         int     `json:"matakuliahLulus"`
 	JumlahMatakuliahDiulang int     `json:"jumlahMatakuliahDiulang"`
 	SKSMatakuliahDiulang    int     `json:"sksMatakuliahDiulang"`
@@ -42,6 +44,12 @@ type MahasiswaDetail struct {
 	Lulus              bool   `json:"lulus"`
 	NoSeriIjazah       string `json:"noSeriIjazah"`
 	MasaStudi          string `json:"masaStudi"`
+
+	// Fields from mahasiswaInfo (more accurate IPK)
+	IPKFromInfo            float64 `json:"-"` // IPK from mahasiswaInfo query
+	TotalSksLulusFromInfo  int     `json:"-"` // Total SKS lulus from mahasiswaInfo
+	JumlahSemesterFromInfo int     `json:"-"` // Jumlah semester from mahasiswaInfo
+	SksBerjalanFromInfo    int     `json:"-"` // SKS berjalan from mahasiswaInfo (determines active status)
 
 	Ayah           *OrangTua       `json:"ayah"`
 	Ibu            *OrangTua       `json:"ibu"`
@@ -130,6 +138,14 @@ const (
 	StatusAlumni     MahasiswaStatus = "Alumni"
 )
 
+// SubStatusTidakAktif represents sub-categories for inactive students
+type SubStatusTidakAktif string
+
+const (
+	SubStatusTidakKRS  SubStatusTidakAktif = "Tidak KRS"  // Not registered for courses
+	SubStatusSudahMauDO SubStatusTidakAktif = "Sudah Mau DO" // Approaching dropout deadline
+)
+
 // MahasiswaKategori represents student academic category
 type MahasiswaKategori string
 
@@ -139,15 +155,38 @@ const (
 	KategoriBerisiko    MahasiswaKategori = "Berisiko"
 )
 
-// GetStatus determines student status based on SKS
+// GetStatus determines student status based on SKSBerjalan
+// - Alumni: SKSLulus >= 156 (graduated)
+// - Aktif: SKSBerjalan > 0 (currently taking courses)
+// - Tidak Aktif: SKSBerjalan == 0 (not taking any courses)
 func (m *Mahasiswa) GetStatus() MahasiswaStatus {
-	if m.SKSLulus >= 144 {
+	if m.SKSLulus >= 156 {
 		return StatusAlumni
 	}
-	if m.SKSLulus > 0 {
+	if m.SKSBerjalan > 0 {
 		return StatusAktif
 	}
 	return StatusTidakAktif
+}
+
+// GetSubStatus determines sub-status for inactive students
+// - Tidak KRS: just not registered for courses this semester
+// - Sudah Mau DO: approaching dropout deadline (angkatan + 7 years)
+func (m *Mahasiswa) GetSubStatus(currentYear int) SubStatusTidakAktif {
+	if m.GetStatus() != StatusTidakAktif {
+		return "" // Only applicable for inactive students
+	}
+
+	// Maximum study duration is 7 years
+	batasKelulusan := m.Angkatan + 7
+
+	// If within 1 year of deadline or past it, mark as "Sudah Mau DO"
+	if currentYear >= batasKelulusan-1 {
+		return SubStatusSudahMauDO
+	}
+
+	// Otherwise just "Tidak KRS"
+	return SubStatusTidakKRS
 }
 
 // GetKategori determines student category based on IPK

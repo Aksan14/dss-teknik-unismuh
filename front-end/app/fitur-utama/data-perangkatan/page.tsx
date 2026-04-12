@@ -3,13 +3,13 @@
 import { API_BASE_URL } from '@/lib/api';
 import { getLast7Years } from '@/lib/years';
 import {
-    ChevronDoubleLeftIcon,
-    ChevronDoubleRightIcon,
-    ChevronLeftIcon,
-    HomeIcon,
+  HomeIcon,
+  ChevronLeftIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 
 interface Mahasiswa {
   nim: string;
@@ -24,7 +24,6 @@ interface Mahasiswa {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
-  jurusan: string;
 }
 
 const YEARS = getLast7Years();
@@ -108,9 +107,9 @@ export default function DataPerangkatan() {
       </header>
 
       <main className="px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/" className="inline-flex items-center text-blue-600 hover:text-blue-900 mb-6">
+        <Link href="/fitur-utama" className="inline-flex items-center text-blue-600 hover:text-blue-900 mb-6">
           <ChevronLeftIcon className="h-5 w-5 mr-1" />
-          Kembali ke Dashboard
+          Kembali ke Fitur Utama
         </Link>
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -160,7 +159,6 @@ export default function DataPerangkatan() {
                   <th className="px-6 py-4 text-left font-semibold text-blue-900">No</th>
                   <th className="px-6 py-4 text-left font-semibold text-blue-900">Nama</th>
                   <th className="px-6 py-4 text-left font-semibold text-blue-900">NIM</th>
-                  <th className="px-6 py-4 text-left font-semibold text-blue-900">Jurusan</th>
                   <th className="px-6 py-4 text-left font-semibold text-blue-900">IPK</th>
                   <th className="px-6 py-4 text-left font-semibold text-blue-900">SKS Lulus</th>
                   <th className="px-6 py-4 text-left font-semibold text-blue-900">SKS Diambil</th>
@@ -175,11 +173,11 @@ export default function DataPerangkatan() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-8 text-center text-gray-500">Loading data...</td>
+                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">Loading data...</td>
                   </tr>
                 ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
                       {search ? 'Tidak ada data yang cocok' : `Tidak ada mahasiswa angkatan ${activeYear}`}
                     </td>
                   </tr>
@@ -189,7 +187,6 @@ export default function DataPerangkatan() {
                       <td className="px-6 py-4 text-gray-900">{(currentPage - 1) * PER_PAGE + idx + 1}</td>
                       <td className="px-6 py-4 text-gray-900 font-medium">{mahasiswa.nama}</td>
                       <td className="px-6 py-4 text-gray-900">{mahasiswa.nim}</td>
-                      <td className="px-6 py-4 text-gray-900 text-xs">{mahasiswa.jurusan}</td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                           (mahasiswa.ipk || 0) >= 3.5 ? 'bg-green-100 text-green-800' :

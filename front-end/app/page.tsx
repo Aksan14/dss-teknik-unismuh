@@ -1,5 +1,7 @@
 ﻿'use client';
 
+import { API_BASE_URL } from '@/lib/api';
+import { getYearRange } from '@/lib/years';
 import {
     AcademicCapIcon,
     ArrowRightIcon,
@@ -54,7 +56,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('http://localhost:8080/api/v1/stats');
+        const response = await fetch(`${API_BASE_URL}/stats`);
         const data = await response.json();
         setStats(data);
       } catch (error) {
@@ -169,12 +171,13 @@ export default function Dashboard() {
       link: '/mahasiswa-tidak-aktif'
     },
     { 
-      label: 'Berprestasi', 
+      label: 'Berprestasi (IPK ≥ 3.5)', 
       value: (stats?.berprestasi ?? 0).toLocaleString(), 
       icon: StarIcon,
       color: 'text-yellow-900',
       bgColor: 'bg-yellow-100',
-      borderColor: 'border-yellow-200'
+      borderColor: 'border-yellow-200',
+      link: '/prestasi-mahasiswa'
     },
     { 
       label: 'Alumni', 
@@ -228,6 +231,7 @@ export default function Dashboard() {
               <p className="text-blue-200 text-sm">Selamat datang di</p>
               <h2 className="text-3xl font-bold mt-1">SISTEM PELACAKAN MAHASISWA</h2>
               <p className="text-blue-200 mt-2">Universitas Muhammadiyah Makassar - Fakultas Teknik</p>
+              <p className="text-blue-300 text-sm mt-1">Data Mahasiswa Angkatan {getYearRange().from} - {getYearRange().to} (7 tahun terakhir)</p>
               {!loading && stats?.rata_rata_ipk && (
                 <div className="mt-4 inline-flex items-center bg-white/15 backdrop-blur-sm px-4 py-2 rounded-lg">
                   <ArrowTrendingUpIcon className="h-5 w-5 mr-2 text-green-300" />

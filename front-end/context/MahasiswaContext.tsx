@@ -1,9 +1,7 @@
 'use client';
 
 import { createContext, ReactNode, useContext, useState, useCallback } from 'react';
-
-// API Base URL
-const API_BASE_URL = 'http://localhost:8080/api/v1';
+import { API_BASE_URL } from '@/lib/api';
 
 // Types matching the new simplified API structure
 export interface MahasiswaAPI {
@@ -19,8 +17,6 @@ export interface MahasiswaAPI {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
-  jurusan: string;
-  jurusan: string;
   jurusan: string;
 }
 
@@ -62,12 +58,7 @@ export interface HasilSAWAPI {
   nilai_saw: number;
   kategori: string;
   jurusan: string;
-  jurusan: string;
-  jurusan: string;
   ranking: number;
-  jurusan: string;
-  jurusan: string;
-  jurusan: string;
 }
 
 interface SAWResponse {
@@ -188,7 +179,7 @@ function convertToLegacyFormat(api: MahasiswaAPI): MahasiswaData {
     ipk: api.ipk,
     kehadiran: 0,
     sks_lulus: api.sks_lulus,
-    total_sks_wajib: api.sks_total || 144,
+    total_sks_wajib: api.sks_total || 156,
     mk_lulus: api.matakuliah_lulus,
     mk_mengulang: api.jumlah_mk_diulang,
     lama_studi: estimatedSemester,
@@ -204,7 +195,7 @@ function convertToLegacyFormat(api: MahasiswaAPI): MahasiswaData {
 function hitungAnalisisFromAPI(data: MahasiswaAPI): HasilAnalisis {
   // 5 criteria: IPK(30% benefit), SKS Lulus(20% benefit), MK Lulus(15% benefit),
   //             MK Diulang(20% cost), SKS MK Diulang(15% cost)
-  const totalSksWajib = data.sks_total || 144;
+  const totalSksWajib = data.sks_total || 156;
   const maxMK = 60; // reference max for normalization
 
   // Normalized values (0-1)

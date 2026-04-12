@@ -1,5 +1,6 @@
 'use client';
 
+import { API_BASE_URL } from '@/lib/api';
 import {
     ChevronDoubleLeftIcon,
     ChevronDoubleRightIcon,
@@ -23,7 +24,6 @@ interface Mahasiswa {
   status: string;
   kategori: string;
   jurusan: string;
-  jurusan: string;
 }
 
 const PER_PAGE = 30;
@@ -38,7 +38,7 @@ export default function DataAlumni() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8080/api/v1/mahasiswa/alumni');
+      const response = await fetch(`${API_BASE_URL}/mahasiswa/alumni`);
       const result = await response.json();
       setAllData(result.data || []);
     } catch (error) {
@@ -98,7 +98,7 @@ export default function DataAlumni() {
             <HomeIcon className="h-8 w-8 text-purple-600" />
             <div>
               <h1 className="text-2xl font-bold text-purple-900">Data Alumni</h1>
-              <p className="text-sm text-purple-600">Data mahasiswa yang telah lulus (SKS ≥ 144)</p>
+              <p className="text-sm text-purple-600">Data mahasiswa yang telah lulus (SKS ≥ 156)</p>
             </div>
           </div>
         </div>

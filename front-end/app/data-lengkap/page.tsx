@@ -1,5 +1,7 @@
 'use client';
 
+import { API_BASE_URL } from '@/lib/api';
+import { getLast7Years } from '@/lib/years';
 import {
     ChevronDoubleLeftIcon,
     ChevronDoubleRightIcon,
@@ -26,7 +28,7 @@ interface Mahasiswa {
 }
 
 const PER_PAGE = 30;
-const ANGKATAN_OPTIONS = [2019, 2020, 2021, 2022, 2023, 2024, 2025];
+const ANGKATAN_OPTIONS = getLast7Years();
 
 export default function DataLengkap() {
   const [selectedAngkatan, setSelectedAngkatan] = useState<number | null>(null);
@@ -47,9 +49,9 @@ export default function DataLengkap() {
     setLoading(true);
     try {
       const offset = (page - 1) * PER_PAGE;
-      let url = `http://localhost:8080/api/v1/mahasiswa?limit=${PER_PAGE}&offset=${offset}`;
+      let url = `${API_BASE_URL}/mahasiswa?limit=${PER_PAGE}&offset=${offset}`;
       if (angkatan) {
-        url = `http://localhost:8080/api/v1/mahasiswa/angkatan/${angkatan}`;
+        url = `${API_BASE_URL}/mahasiswa/angkatan/${angkatan}`;
       }
       const response = await fetch(url);
       const result = await response.json();
@@ -83,7 +85,7 @@ export default function DataLengkap() {
     setLoading(true);
     setIsSearchMode(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/mahasiswa/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`${API_BASE_URL}/mahasiswa/search?q=${encodeURIComponent(query)}`);
       const result = await response.json();
       const results = result.data || result || [];
       setSearchResults(Array.isArray(results) ? results : []);
@@ -172,7 +174,7 @@ export default function DataLengkap() {
             <HomeIcon className="h-8 w-8 text-blue-900" />
             <div>
               <h1 className="text-2xl font-bold text-blue-900">Data Lengkap Mahasiswa</h1>
-              <p className="text-sm text-blue-600">Teknik Informatika - UNISMUH</p>
+              <p className="text-sm text-blue-600">Teknik Informatika - UNISMUH (Angkatan {ANGKATAN_OPTIONS[0]} - {ANGKATAN_OPTIONS[ANGKATAN_OPTIONS.length - 1]})</p>
             </div>
           </div>
         </div>

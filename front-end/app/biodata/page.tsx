@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { API_BASE_URL } from '@/lib/api';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserIcon, AcademicCapIcon, MagnifyingGlassIcon, FunnelIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
@@ -32,7 +33,7 @@ export default function Biodata() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8080/api/v1/mahasiswa?limit=10000');
+      const res = await fetch(`${API_BASE_URL}/mahasiswa?limit=10000`);
       const result = await res.json();
       setAllData(result.data || []);
     } catch (error) {

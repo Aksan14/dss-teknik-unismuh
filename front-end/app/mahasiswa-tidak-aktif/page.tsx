@@ -1,5 +1,6 @@
 'use client';
 
+import { API_BASE_URL } from '@/lib/api';
 import {
     ChevronDoubleLeftIcon,
     ChevronDoubleRightIcon,
@@ -23,7 +24,6 @@ interface Mahasiswa {
   status: string;
   kategori: string;
   jurusan: string;
-  jurusan: string;
 }
 
 const PER_PAGE = 30;
@@ -38,7 +38,7 @@ export default function MahasiswaTidakAktif() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8080/api/v1/mahasiswa/tidak-aktif');
+      const response = await fetch(`${API_BASE_URL}/mahasiswa/tidak-aktif`);
       const result = await response.json();
       setAllData(result.data || []);
     } catch (error) {

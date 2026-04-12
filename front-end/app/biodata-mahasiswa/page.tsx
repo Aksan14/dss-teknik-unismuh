@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { API_BASE_URL } from '@/lib/api';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { UserIcon, AcademicCapIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
@@ -18,7 +19,6 @@ interface Mahasiswa {
   sks_mk_diulang: number;
   status: string;
   kategori: string;
-  jurusan: string;
   jurusan: string;
 }
 
@@ -41,7 +41,7 @@ function BiodataMahasiswa() {
     if (!nim) { setError('NIM tidak ditemukan'); setLoading(false); return; }
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/mahasiswa/${nim}`);
+      const res = await fetch(`${API_BASE_URL}/mahasiswa/${nim}`);
       if (!res.ok) throw new Error('Data tidak ditemukan');
       const result = await res.json();
       setMahasiswa(result.data || result);

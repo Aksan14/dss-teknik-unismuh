@@ -13,6 +13,7 @@ import (
 	"github.com/unismuh/sipema/internal/domain"
 	"github.com/unismuh/sipema/internal/dto"
 	"github.com/unismuh/sipema/internal/repository"
+	"github.com/unismuh/sipema/internal/services"
 )
 
 // MahasiswaService handles business logic for students
@@ -416,7 +417,10 @@ func (s *MahasiswaService) GetDetailByNIM(nim string) (*dto.MahasiswaDetailRespo
 
 	result := dto.FromDetailDomain(detail)
 
-	// Cache the result in Redis
+	// Compute analysis (all calculations done by backend)
+	result.Analisis = services.ComputeAnalisis(result)
+
+	// Cache the result in Redis (with computed analysis)
 	if cacheErr := s.redisCache.SetJSON(ctx, cacheKey, result); cacheErr != nil {
 		log.Printf("Warning: Failed to cache detail %s: %v", nim, cacheErr)
 	} else {

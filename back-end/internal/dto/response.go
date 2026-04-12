@@ -1,6 +1,10 @@
 package dto
 
-import "github.com/unismuh/sipema/internal/domain"
+import (
+	"time"
+
+	"github.com/unismuh/sipema/internal/domain"
+)
 
 // MahasiswaResponse represents the API response for a single student
 type MahasiswaResponse struct {
@@ -15,6 +19,7 @@ type MahasiswaResponse struct {
 	JumlahMatakuliahDiulang int     `json:"jumlah_mk_diulang"`
 	SKSMatakuliahDiulang    int     `json:"sks_mk_diulang"`
 	Status                  string  `json:"status"`
+	SubStatus               string  `json:"sub_status,omitempty"` // Sub-status for inactive: "Tidak KRS" or "Sudah Mau DO"
 	Kategori                string  `json:"kategori"`
 	Jurusan                 string  `json:"jurusan"`
 }
@@ -87,6 +92,7 @@ type MahasiswaDetailResponse struct {
 	NoSeriIjazah       string `json:"no_seri_ijazah"`
 	MasaStudi          string `json:"masa_studi"`
 	Status             string `json:"status"`
+	SubStatus          string `json:"sub_status,omitempty"` // Sub-status for inactive: "Tidak KRS" or "Sudah Mau DO"
 	Kategori           string `json:"kategori"`
 
 	Ayah           *OrangTuaResponse       `json:"ayah"`
@@ -104,6 +110,76 @@ type MahasiswaDetailResponse struct {
 	MatakuliahLulus int     `json:"matakuliah_lulus"`
 	JumlahMKDiulang int     `json:"jumlah_mk_diulang"`
 	SKSMKDiulang    int     `json:"sks_mk_diulang"`
+
+	// Computed Analysis Fields (calculated by backend)
+	Analisis *AnalisisResponse `json:"analisis,omitempty"`
+}
+
+// MasalahResponse represents an academic problem
+type MasalahResponse struct {
+	Text     string `json:"text"`
+	Severity string `json:"severity"` // high, medium, low
+}
+
+// TanyaJawabResponse represents Q&A about student
+type TanyaJawabResponse struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+	Color    string `json:"color"` // green, blue, orange, red, gray
+}
+
+// IPSStatsResponse represents IPS statistics
+type IPSStatsResponse struct {
+	Average float64 `json:"average"`
+	Max     float64 `json:"max"`
+	Min     float64 `json:"min"`
+	Last    float64 `json:"last"`
+	Trend   string  `json:"trend"` // up, down, stable
+}
+
+// AnalisisResponse represents all computed analysis for a student
+type AnalisisResponse struct {
+	// Progress & Efficiency
+	ProgressSKS      float64 `json:"progress_sks"`      // Percentage 0-100
+	Efisiensi        float64 `json:"efisiensi"`         // Percentage 0-100
+	RasioUlang       float64 `json:"rasio_ulang"`       // Percentage of repeated courses
+	TahunStudi       int     `json:"tahun_studi"`       // Years since enrollment
+	SemesterAktif    int     `json:"semester_aktif"`    // Active semesters count
+	SKSPerSemester   float64 `json:"sks_per_semester"`  // Average SKS per semester
+	MKLulusPerSem    float64 `json:"mk_lulus_per_sem"`  // Average MK passed per semester
+	TingkatKelulusan float64 `json:"tingkat_kelulusan"` // Pass rate percentage
+
+	// SKS Per Semester Type (Ganjil/Genap)
+	SKSGanjil int `json:"sks_ganjil"` // Total SKS in odd semesters
+	SKSGenap  int `json:"sks_genap"`  // Total SKS in even semesters
+
+	// IPS Statistics
+	IPSStats IPSStatsResponse `json:"ips_stats"`
+
+	// Predictions
+	EstimasiLulus      string `json:"estimasi_lulus"`       // e.g., "~2 semester lagi"
+	EstimasiBulanTahun string `json:"estimasi_bulan_tahun"` // e.g., "Juni 2025"
+	SemesterSisa       int    `json:"semester_sisa"`        // Estimated semesters remaining
+	SKSSisa            int    `json:"sks_sisa"`             // Remaining SKS
+	SKSPerSemIdeal     int    `json:"sks_per_sem_ideal"`    // SKS needed per sem for on-time graduation
+
+	// Health Score (0-100)
+	SkorAkademik      int    `json:"skor_akademik"`
+	SkorAkademikLabel string `json:"skor_akademik_label"` // Sangat Baik, Baik, Cukup, Kurang, Kritis
+
+	// SAW Analysis
+	NilaiSAW float64 `json:"nilai_saw"`
+
+	// Status Flags
+	IsOnTrack    bool `json:"is_on_track"`    // On track for 4-year graduation
+	RiskDO       bool `json:"risk_do"`        // At risk of dropout
+	BisaCumLaude bool `json:"bisa_cum_laude"` // Can achieve cum laude
+
+	// Problems, Achievements, Recommendations
+	Masalah     []MasalahResponse    `json:"masalah"`
+	Prestasi    []string             `json:"prestasi"`
+	Rekomendasi []string             `json:"rekomendasi"`
+	TanyaJawab  []TanyaJawabResponse `json:"tanya_jawab"`
 }
 
 // OrangTuaResponse represents parent data
@@ -201,11 +277,28 @@ func FromDetailDomain(d *domain.MahasiswaDetail) *MahasiswaDetailResponse {
 		MasaStudi:          d.MasaStudi,
 	}
 
+	// Use IPK from mahasiswaInfo (more accurate)
+	if d.IPKFromInfo > 0 {
+		resp.IPK = d.IPKFromInfo
+	}
+
+	// Use SKS lulus from mahasiswaInfo if available
+	if d.TotalSksLulusFromInfo > 0 {
+		resp.SKSLulus = d.TotalSksLulusFromInfo
+	}
+
 	// Calculate summary from KHS
 	if len(d.KHS) > 0 {
-		lastKHS := d.KHS[len(d.KHS)-1]
-		resp.IPK = lastKHS.IPK
-		resp.SKSLulus = lastKHS.TotalSksLulus
+		// Only use KHS IPK if mahasiswaInfo IPK not available
+		if resp.IPK == 0 {
+			lastKHS := d.KHS[len(d.KHS)-1]
+			resp.IPK = lastKHS.IPK
+		}
+		// Only use KHS SKS lulus if mahasiswaInfo not available
+		if resp.SKSLulus == 0 {
+			lastKHS := d.KHS[len(d.KHS)-1]
+			resp.SKSLulus = lastKHS.TotalSksLulus
+		}
 
 		// Sum across all semesters
 		for _, k := range d.KHS {
@@ -217,16 +310,27 @@ func FromDetailDomain(d *domain.MahasiswaDetail) *MahasiswaDetailResponse {
 		resp.SKSTotal = resp.SKSDiambil
 	}
 
-	// Determine status
+	// Determine status based on sksBerjalan from mahasiswaInfo
+	// - Alumni: lulus == true
+	// - Aktif: sksBerjalan > 0 (currently taking courses)
+	// - Tidak Aktif: sksBerjalan == 0 (not taking any courses)
+	currentYear := time.Now().Year()
 	if d.Lulus {
 		resp.Status = "Alumni"
-	} else if resp.SKSLulus > 0 {
+	} else if d.SksBerjalanFromInfo > 0 {
 		resp.Status = "Aktif"
 	} else {
 		resp.Status = "Tidak Aktif"
+		// Determine sub-status for inactive students
+		batasKelulusan := d.Angkatan + 7
+		if currentYear >= batasKelulusan-1 {
+			resp.SubStatus = string(domain.SubStatusSudahMauDO)
+		} else {
+			resp.SubStatus = string(domain.SubStatusTidakKRS)
+		}
 	}
 
-	// Determine kategori
+	// Determine kategori based on IPK
 	if resp.IPK >= 3.5 {
 		resp.Kategori = "Berprestasi"
 	} else if resp.IPK >= 2.0 {
@@ -308,6 +412,13 @@ func FromDetailDomain(d *domain.MahasiswaDetail) *MahasiswaDetailResponse {
 
 // FromDomain converts domain model to DTO
 func FromDomain(m *domain.Mahasiswa) MahasiswaResponse {
+	currentYear := time.Now().Year()
+	status := m.GetStatus()
+	subStatus := ""
+	if status == domain.StatusTidakAktif {
+		subStatus = string(m.GetSubStatus(currentYear))
+	}
+
 	return MahasiswaResponse{
 		NIM:                     m.NIM,
 		Nama:                    m.Nama,
@@ -319,7 +430,8 @@ func FromDomain(m *domain.Mahasiswa) MahasiswaResponse {
 		MatakuliahLulus:         m.MatakuliahLulus,
 		JumlahMatakuliahDiulang: m.JumlahMatakuliahDiulang,
 		SKSMatakuliahDiulang:    m.SKSMatakuliahDiulang,
-		Status:                  string(m.GetStatus()),
+		Status:                  string(status),
+		SubStatus:               subStatus,
 		Kategori:                string(m.GetKategori()),
 		Jurusan:                 m.Jurusan,
 	}

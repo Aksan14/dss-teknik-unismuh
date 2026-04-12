@@ -1,5 +1,7 @@
 'use client';
 
+import { API_BASE_URL } from '@/lib/api';
+import { getLast7Years } from '@/lib/years';
 import {
     ChevronDoubleLeftIcon,
     ChevronDoubleRightIcon,
@@ -23,14 +25,13 @@ interface Mahasiswa {
   status: string;
   kategori: string;
   jurusan: string;
-  jurusan: string;
 }
 
-const YEARS = [2019, 2020, 2021, 2022, 2023, 2024, 2025];
+const YEARS = getLast7Years();
 const PER_PAGE = 30;
 
 export default function DataAngkatan() {
-  const [activeYear, setActiveYear] = useState(2022);
+  const [activeYear, setActiveYear] = useState(YEARS[0]);
   const [data, setData] = useState<Mahasiswa[]>([]);
   const [allData, setAllData] = useState<Mahasiswa[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,7 @@ export default function DataAngkatan() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/mahasiswa/angkatan/${activeYear}`);
+      const response = await fetch(`${API_BASE_URL}/mahasiswa/angkatan/${activeYear}`);
       const result = await response.json();
       setAllData(result.data || []);
     } catch (error) {
