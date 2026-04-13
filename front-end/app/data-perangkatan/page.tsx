@@ -30,6 +30,8 @@ interface Mahasiswa {
 const YEARS = getLast7Years();
 const PER_PAGE = 30;
 
+type FilterStatus = 'semua' | 'lulus' | 'belum_lulus';
+
 export default function DataPerangkatan() {
   const [activeYear, setActiveYear] = useState(YEARS[0]);
   const [data, setData] = useState<Mahasiswa[]>([]);
@@ -37,6 +39,7 @@ export default function DataPerangkatan() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('semua');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -56,12 +59,29 @@ export default function DataPerangkatan() {
     fetchData();
   }, [fetchData]);
 
-  const filteredData = useMemo(() => search
-    ? allData.filter(m => 
+  const jumlahLulus = useMemo(() => allData.filter(m => m.status === 'Alumni').length, [allData]);
+  const jumlahBelumLulus = useMemo(() => allData.filter(m => m.status !== 'Alumni').length, [allData]);
+
+  const filteredData = useMemo(() => {
+    let result = allData;
+    
+    // Filter by graduation status
+    if (filterStatus === 'lulus') {
+      result = result.filter(m => m.status === 'Alumni');
+    } else if (filterStatus === 'belum_lulus') {
+      result = result.filter(m => m.status !== 'Alumni');
+    }
+    
+    // Filter by search
+    if (search) {
+      result = result.filter(m =>
         m.nama.toLowerCase().includes(search.toLowerCase()) ||
         m.nim.includes(search)
-      )
-    : allData, [search, allData]);
+      );
+    }
+    
+    return result;
+  }, [search, allData, filterStatus]);
 
   const totalPages = Math.ceil(filteredData.length / PER_PAGE);
 
@@ -73,7 +93,7 @@ export default function DataPerangkatan() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, activeYear]);
+  }, [search, activeYear, filterStatus]);
 
   const handlePrevPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
@@ -139,10 +159,63 @@ export default function DataPerangkatan() {
           />
         </div>
 
+        {/* Detail Per Angkatan Terpilih */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg shadow-md p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Total */}
+            <div
+              onClick={() => setFilterStatus('semua')}
+              className={`cursor-pointer rounded-lg p-4 border-2 transition-colors ${
+                filterStatus === 'semua'
+                  ? 'bg-blue-100 border-blue-500'
+                  : 'bg-white border-gray-200 hover:border-blue-300'
+              }`}
+            >
+              <p className="text-sm text-gray-600">Total Mahasiswa</p>
+              <p className="text-3xl font-bold text-blue-600">
+                {loading ? '-' : allData.length.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Angkatan {activeYear}</p>
+            </div>
+            {/* Sudah Lulus */}
+            <div
+              onClick={() => setFilterStatus('lulus')}
+              className={`cursor-pointer rounded-lg p-4 border-2 transition-colors ${
+                filterStatus === 'lulus'
+                  ? 'bg-green-100 border-green-500'
+                  : 'bg-white border-gray-200 hover:border-green-300'
+              }`}
+            >
+              <p className="text-sm text-gray-600">Sudah Lulus (Alumni)</p>
+              <p className="text-3xl font-bold text-green-600">
+                {loading ? '-' : jumlahLulus.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {loading ? '-' : allData.length > 0 ? `${((jumlahLulus / allData.length) * 100).toFixed(1)}%` : '0%'} dari total
+              </p>
+            </div>
+            {/* Belum Lulus */}
+            <div
+              onClick={() => setFilterStatus('belum_lulus')}
+              className={`cursor-pointer rounded-lg p-4 border-2 transition-colors ${
+                filterStatus === 'belum_lulus'
+                  ? 'bg-orange-100 border-orange-500'
+                  : 'bg-white border-gray-200 hover:border-orange-300'
+              }`}
+            >
+              <p className="text-sm text-gray-600">Belum Lulus</p>
+              <p className="text-3xl font-bold text-orange-600">
+                {loading ? '-' : jumlahBelumLulus.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {loading ? '-' : allData.length > 0 ? `${((jumlahBelumLulus / allData.length) * 100).toFixed(1)}%` : '0%'} dari total
+              </p>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-4 justify-between items-center">
             <p className="text-blue-900 font-semibold">
-              Mahasiswa Angkatan {activeYear}: <span className="text-2xl text-blue-600">{loading ? '-' : filteredData.length.toLocaleString()}</span>
+              {filterStatus === 'semua' ? 'Semua Mahasiswa' : filterStatus === 'lulus' ? 'Sudah Lulus (Alumni)' : 'Belum Lulus'} — Angkatan {activeYear}: <span className="text-2xl text-blue-600">{loading ? '-' : filteredData.length.toLocaleString()}</span>
             </p>
             {totalPages > 1 && (
               <p className="text-blue-700">

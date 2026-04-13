@@ -178,7 +178,7 @@ func (r *GraphQLRepository) FetchMahasiswaAll(kodeFakultas string, angkatanFrom,
 	return allMahasiswa, nil
 }
 
-// enrichWithMahasiswaInfo fetches mahasiswaInfo for each student to get accurate IPK and SKSBerjalan
+// enrichWithMahasiswaInfo fetches mahasiswaInfo for each student to get accurate IPK, SKSBerjalan, and lulus status
 func (r *GraphQLRepository) enrichWithMahasiswaInfo(mahasiswaList []domain.Mahasiswa) {
 	query := `
 		query GetMahasiswaInfo($nim: String!) {
@@ -188,6 +188,9 @@ func (r *GraphQLRepository) enrichWithMahasiswaInfo(mahasiswaList []domain.Mahas
 				totalSksLulus
 				sksBerjalan
 				aktifTerakhirTa
+			}
+			mahasiswa(nim: $nim) {
+				lulus
 			}
 		}
 	`
@@ -203,6 +206,7 @@ func (r *GraphQLRepository) enrichWithMahasiswaInfo(mahasiswaList []domain.Mahas
 	sksLulusMap := make(map[string]int)
 	sksBerjalanMap := make(map[string]int)
 	aktifTerakhirMap := make(map[string]string)
+	lulusMap := make(map[string]bool)
 
 	for _, m := range mahasiswaList {
 		wg.Add(1)
@@ -229,20 +233,26 @@ func (r *GraphQLRepository) enrichWithMahasiswaInfo(mahasiswaList []domain.Mahas
 					SKSBerjalan     int     `json:"sksBerjalan"`
 					AktifTerakhirTa string  `json:"aktifTerakhirTa"`
 				} `json:"mahasiswaInfo"`
+				Mahasiswa *struct {
+					Lulus bool `json:"lulus"`
+				} `json:"mahasiswa"`
 			}
 
 			if err := json.Unmarshal(resp.Data, &result); err != nil {
 				return
 			}
 
+			mu.Lock()
 			if result.MahasiswaInfo != nil {
-				mu.Lock()
 				ipkMap[nim] = result.MahasiswaInfo.IPK
 				sksLulusMap[nim] = result.MahasiswaInfo.TotalSksLulus
 				sksBerjalanMap[nim] = result.MahasiswaInfo.SKSBerjalan
 				aktifTerakhirMap[nim] = result.MahasiswaInfo.AktifTerakhirTa
-				mu.Unlock()
 			}
+			if result.Mahasiswa != nil {
+				lulusMap[nim] = result.Mahasiswa.Lulus
+			}
+			mu.Unlock()
 		}(m.NIM)
 	}
 
@@ -261,6 +271,9 @@ func (r *GraphQLRepository) enrichWithMahasiswaInfo(mahasiswaList []domain.Mahas
 		}
 		if aktifTerakhir, ok := aktifTerakhirMap[mahasiswaList[i].NIM]; ok {
 			mahasiswaList[i].AktifTerakhirTa = aktifTerakhir
+		}
+		if lulus, ok := lulusMap[mahasiswaList[i].NIM]; ok {
+			mahasiswaList[i].Lulus = lulus
 		}
 	}
 }

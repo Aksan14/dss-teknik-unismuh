@@ -6,14 +6,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/unismuh/sipema/internal/domain"
 	"github.com/unismuh/sipema/internal/dto"
 )
 
 const (
-	TotalSKSWajib = 156 // Total required SKS for graduation
 	SemesterIdeal = 8   // Ideal semesters for graduation (4 years)
 	MaxMK         = 60  // Reference max for normalization
 )
+
+// getJurusanFromResp extracts jurusan name from detail response
+func getJurusanFromResp(resp *dto.MahasiswaDetailResponse) string {
+	if resp.Prodi != nil && resp.Prodi.NamaProdi != "" {
+		return resp.Prodi.NamaProdi
+	}
+	return ""
+}
 
 // ComputeAnalisis calculates all analysis fields for a student detail response
 func ComputeAnalisis(resp *dto.MahasiswaDetailResponse) *dto.AnalisisResponse {
@@ -23,15 +31,19 @@ func ComputeAnalisis(resp *dto.MahasiswaDetailResponse) *dto.AnalisisResponse {
 
 	analisis := &dto.AnalisisResponse{}
 
+	// Get per-jurusan SKS requirement
+	jurusan := getJurusanFromResp(resp)
+	totalSKSWajib := domain.GetSKSWajib(jurusan)
+
 	// Basic calculations
 	tahunSekarang := time.Now().Year()
 	analisis.TahunStudi = tahunSekarang - resp.Angkatan
 	analisis.SemesterAktif = len(resp.KHS)
 
-	// SKS Total should be at least TotalSKSWajib for calculation purposes
+	// SKS Total should be at least totalSKSWajib for calculation purposes
 	sksTotal := resp.SKSTotal
 	if sksTotal == 0 {
-		sksTotal = TotalSKSWajib
+		sksTotal = totalSKSWajib
 	}
 
 	// Progress & Efficiency
@@ -55,7 +67,7 @@ func ComputeAnalisis(resp *dto.MahasiswaDetailResponse) *dto.AnalisisResponse {
 	analisis.SKSGanjil, analisis.SKSGenap = computeSKSBySemesterType(resp.KHS)
 
 	// Predictions
-	analisis.SKSSisa = int(math.Max(float64(TotalSKSWajib-resp.SKSLulus), 0))
+	analisis.SKSSisa = int(math.Max(float64(totalSKSWajib-resp.SKSLulus), 0))
 	if analisis.SKSPerSemester > 0 && analisis.SKSSisa > 0 {
 		analisis.SemesterSisa = int(math.Ceil(float64(analisis.SKSSisa) / analisis.SKSPerSemester))
 		if resp.Lulus {
@@ -80,7 +92,7 @@ func ComputeAnalisis(resp *dto.MahasiswaDetailResponse) *dto.AnalisisResponse {
 	}
 
 	// SAW Analysis
-	analisis.NilaiSAW = computeSAW(resp)
+	analisis.NilaiSAW = computeSAW(resp, totalSKSWajib)
 
 	// Academic Health Score
 	analisis.SkorAkademik, analisis.SkorAkademikLabel = computeHealthScore(resp, analisis)
@@ -103,7 +115,7 @@ func ComputeAnalisis(resp *dto.MahasiswaDetailResponse) *dto.AnalisisResponse {
 	analisis.Rekomendasi = computeRekomendasi(resp, analisis)
 
 	// Q&A
-	analisis.TanyaJawab = computeTanyaJawab(resp, analisis)
+	analisis.TanyaJawab = computeTanyaJawab(resp, analisis, totalSKSWajib)
 
 	return analisis
 }
@@ -147,26 +159,32 @@ func computeIPSStats(khs []dto.KHSResponse) dto.IPSStatsResponse {
 }
 
 // computeSKSBySemesterType calculates SKS per semester type (Ganjil/Genap)
-// TahunAkademik format: "2023/2024 Ganjil" or "2023/2024 Genap"
+// TahunAkademik format: "20231" (ganjil), "20232" (genap), "20233" (additional/pendek)
+// Last digit: 1 = Ganjil, 2 = Genap, 3 = Tambahan
 func computeSKSBySemesterType(khs []dto.KHSResponse) (sksGanjil, sksGenap int) {
 	for _, k := range khs {
-		// Check if it's Ganjil or Genap semester
-		if strings.Contains(strings.ToLower(k.TahunAkademik), "ganjil") {
+		ta := strings.TrimSpace(k.TahunAkademik)
+		if len(ta) == 0 {
+			continue
+		}
+		lastChar := ta[len(ta)-1]
+		if lastChar == '1' {
 			sksGanjil += k.SksLulus
-		} else if strings.Contains(strings.ToLower(k.TahunAkademik), "genap") {
+		} else if lastChar == '2' {
 			sksGenap += k.SksLulus
 		}
+		// '3' (semester pendek/tambahan) is excluded
 	}
 	return sksGanjil, sksGenap
 }
 
 // computeSAW calculates SAW (Simple Additive Weighting) value
-func computeSAW(resp *dto.MahasiswaDetailResponse) float64 {
+func computeSAW(resp *dto.MahasiswaDetailResponse, sksWajib int) float64 {
 	// 5 criteria: IPK(30% benefit), SKS Lulus(20% benefit), MK Lulus(15% benefit),
 	//             MK Diulang(20% cost), SKS MK Diulang(15% cost)
 	totalSksWajib := float64(resp.SKSTotal)
 	if totalSksWajib == 0 {
-		totalSksWajib = TotalSKSWajib
+		totalSksWajib = float64(sksWajib)
 	}
 
 	// Normalized values (0-1)
@@ -449,7 +467,7 @@ func computeRekomendasi(resp *dto.MahasiswaDetailResponse, analisis *dto.Analisi
 }
 
 // computeTanyaJawab generates Q&A about the student
-func computeTanyaJawab(resp *dto.MahasiswaDetailResponse, analisis *dto.AnalisisResponse) []dto.TanyaJawabResponse {
+func computeTanyaJawab(resp *dto.MahasiswaDetailResponse, analisis *dto.AnalisisResponse, sksWajib int) []dto.TanyaJawabResponse {
 	var qa []dto.TanyaJawabResponse
 
 	// Q: Graduation status
@@ -472,7 +490,7 @@ func computeTanyaJawab(resp *dto.MahasiswaDetailResponse, analisis *dto.Analisis
 		})
 	} else if analisis.SKSPerSemester > 0 && analisis.SKSSisa > 0 {
 		answer := fmt.Sprintf("Dengan rata-rata %.1f SKS per semester, mahasiswa membutuhkan sekitar %d semester lagi (~%.1f tahun) untuk menyelesaikan sisa %d SKS dari total %d SKS.",
-			analisis.SKSPerSemester, analisis.SemesterSisa, float64(analisis.SemesterSisa)/2.0, analisis.SKSSisa, TotalSKSWajib)
+			analisis.SKSPerSemester, analisis.SemesterSisa, float64(analisis.SemesterSisa)/2.0, analisis.SKSSisa, sksWajib)
 		if analisis.EstimasiBulanTahun != "" {
 			answer += " Estimasi lulus sekitar " + analisis.EstimasiBulanTahun + "."
 		}
@@ -502,7 +520,7 @@ func computeTanyaJawab(resp *dto.MahasiswaDetailResponse, analisis *dto.Analisis
 		if resp.Status == "Aktif" {
 			qa = append(qa, dto.TanyaJawabResponse{
 				Question: "Apakah mahasiswa ini aktif mengikuti perkuliahan?",
-				Answer:   fmt.Sprintf("Ya, mahasiswa sedang aktif mengambil mata kuliah semester ini. IPK: %.2f, SKS Lulus: %d/%d (%.0f%%).", resp.IPK, resp.SKSLulus, TotalSKSWajib, analisis.ProgressSKS),
+				Answer:   fmt.Sprintf("Ya, mahasiswa sedang aktif mengambil mata kuliah semester ini. IPK: %.2f, SKS Lulus: %d/%d (%.0f%%).", resp.IPK, resp.SKSLulus, sksWajib, analisis.ProgressSKS),
 				Color:    "green",
 			})
 		} else if resp.Status == "Tidak Aktif" {
@@ -524,7 +542,7 @@ func computeTanyaJawab(resp *dto.MahasiswaDetailResponse, analisis *dto.Analisis
 			} else {
 				// Tidak KRS biasa
 				answer = fmt.Sprintf("TIDAK AKTIF - Tidak KRS. Mahasiswa angkatan %d tidak mengambil mata kuliah semester ini. IPK: %.2f, SKS Lulus: %d/%d (%.0f%%). Sisa waktu studi: %d tahun (batas: %d). Mahasiswa perlu segera mengambil KRS untuk melanjutkan studi.",
-					resp.Angkatan, resp.IPK, resp.SKSLulus, TotalSKSWajib, analisis.ProgressSKS, sisaWaktuStatus, batasKelulusanStatus)
+					resp.Angkatan, resp.IPK, resp.SKSLulus, sksWajib, analisis.ProgressSKS, sisaWaktuStatus, batasKelulusanStatus)
 				color = "orange"
 			}
 
@@ -561,7 +579,7 @@ func computeTanyaJawab(resp *dto.MahasiswaDetailResponse, analisis *dto.Analisis
 	qa = append(qa, dto.TanyaJawabResponse{
 		Question: "Berapa rata-rata SKS yang ditempuh per semester?",
 		Answer: fmt.Sprintf("Rata-rata %.1f SKS per semester selama %d semester aktif. Rata-rata mata kuliah lulus per semester: %.1f MK. Total SKS lulus saat ini: %d dari %d SKS.",
-			analisis.SKSPerSemester, analisis.SemesterAktif, analisis.MKLulusPerSem, resp.SKSLulus, TotalSKSWajib),
+			analisis.SKSPerSemester, analisis.SemesterAktif, analisis.MKLulusPerSem, resp.SKSLulus, sksWajib),
 		Color: "blue",
 	})
 
@@ -588,12 +606,12 @@ func computeTanyaJawab(resp *dto.MahasiswaDetailResponse, analisis *dto.Analisis
 
 	// Q: HAPS (Hampir Lulus) status with IPK
 	if !resp.Lulus && analisis.ProgressSKS >= 85 {
-		sksSisa := TotalSKSWajib - resp.SKSLulus
+		sksSisa := sksWajib - resp.SKSLulus
 		var answer string
 		var color string
 		if analisis.ProgressSKS >= 95 {
 			answer = fmt.Sprintf("HAMPIR LULUS! Sudah menyelesaikan %.0f%% SKS (%d/%d). Tinggal %d SKS lagi. IPK saat ini: %.2f. ",
-				analisis.ProgressSKS, resp.SKSLulus, TotalSKSWajib, sksSisa, resp.IPK)
+				analisis.ProgressSKS, resp.SKSLulus, sksWajib, sksSisa, resp.IPK)
 			if resp.IPK >= 3.5 {
 				answer += "Berpotensi lulus dengan predikat cum laude!"
 			} else if resp.IPK >= 3.0 {
@@ -604,7 +622,7 @@ func computeTanyaJawab(resp *dto.MahasiswaDetailResponse, analisis *dto.Analisis
 			color = "green"
 		} else {
 			answer = fmt.Sprintf("Mendekati kelulusan dengan %.0f%% SKS selesai (%d/%d). Sisa %d SKS. IPK saat ini: %.2f.",
-				analisis.ProgressSKS, resp.SKSLulus, TotalSKSWajib, sksSisa, resp.IPK)
+				analisis.ProgressSKS, resp.SKSLulus, sksWajib, sksSisa, resp.IPK)
 			color = "blue"
 		}
 		qa = append(qa, dto.TanyaJawabResponse{

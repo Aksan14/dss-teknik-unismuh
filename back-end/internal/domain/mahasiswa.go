@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 // ProdiMapping maps kode prodi to nama prodi for Fakultas Teknik (04)
 var ProdiMapping = map[string]string{
 	"20201": "Elektro",
@@ -7,6 +9,27 @@ var ProdiMapping = map[string]string{
 	"23201": "Arsitektur",
 	"55202": "Informatika",
 	"35201": "Perencanaan Wilayah Dan Kota",
+}
+
+// SKSWajibPerJurusan defines the minimum SKS required for graduation per jurusan.
+// Each program has different curriculum requirements.
+var SKSWajibPerJurusan = map[string]int{
+	"Elektro":                      150,
+	"Pengairan":                     150,
+	"Arsitektur":                    150,
+	"Informatika":                   150,
+	"Perencanaan Wilayah Dan Kota":  144,
+}
+
+// DefaultSKSWajib is the fallback SKS requirement if jurusan is not found
+const DefaultSKSWajib = 144
+
+// GetSKSWajib returns the minimum SKS required for graduation based on jurusan
+func GetSKSWajib(jurusan string) int {
+	if sks, ok := SKSWajibPerJurusan[jurusan]; ok {
+		return sks
+	}
+	return DefaultSKSWajib
 }
 
 // Mahasiswa represents the core student entity from GraphQL API
@@ -24,6 +47,7 @@ type Mahasiswa struct {
 	JumlahMatakuliahDiulang int     `json:"jumlahMatakuliahDiulang"`
 	SKSMatakuliahDiulang    int     `json:"sksMatakuliahDiulang"`
 	Jurusan                 string  `json:"jurusan"`
+	Lulus                   bool    `json:"lulus"` // Graduation status from API
 }
 
 // MahasiswaDetail represents the full student detail from GetMahasiswa query
@@ -155,12 +179,19 @@ const (
 	KategoriBerisiko    MahasiswaKategori = "Berisiko"
 )
 
-// GetStatus determines student status based on SKSBerjalan
-// - Alumni: SKSLulus >= 156 (graduated)
+// GetStatus determines student status based on Lulus flag, SKSLulus, jurusan threshold, and minimum study duration
+// - Alumni: Lulus == true OR (SKSLulus >= SKS wajib jurusan AND has studied for at least 3 years)
 // - Aktif: SKSBerjalan > 0 (currently taking courses)
 // - Tidak Aktif: SKSBerjalan == 0 (not taking any courses)
 func (m *Mahasiswa) GetStatus() MahasiswaStatus {
-	if m.SKSLulus >= 156 {
+	// If API explicitly says graduated, trust it
+	if m.Lulus {
+		return StatusAlumni
+	}
+	currentYear := time.Now().Year()
+	masaStudi := currentYear - m.Angkatan
+	sksWajib := GetSKSWajib(m.Jurusan)
+	if m.SKSLulus >= sksWajib && masaStudi >= 3 {
 		return StatusAlumni
 	}
 	if m.SKSBerjalan > 0 {

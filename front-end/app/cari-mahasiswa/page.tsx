@@ -346,11 +346,12 @@ export default function CariMahasiswaPage() {
           </div>
 
           {/* ── Summary Cards ── */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
             {[
               { label: 'IPK', value: (m.ipk || 0).toFixed(2), color: m.ipk >= 3.5 ? 'text-green-700' : m.ipk >= 3.0 ? 'text-blue-700' : m.ipk >= 2.0 ? 'text-orange-700' : 'text-red-700' },
               { label: 'IPS Terakhir', value: ipsLast.toFixed(2), color: ipsLast >= 3.5 ? 'text-green-700' : ipsLast >= 3.0 ? 'text-blue-700' : 'text-orange-700' },
               { label: 'SKS Lulus', value: `${m.sks_lulus}`, color: 'text-gray-900' },
+              { label: 'Sisa SKS', value: `${a?.sks_sisa ?? '-'}`, color: (a?.sks_sisa ?? 0) <= 0 ? 'text-green-700' : (a?.sks_sisa ?? 0) <= 20 ? 'text-blue-700' : 'text-orange-700' },
               { label: 'MK Diulang', value: `${m.jumlah_mk_diulang}`, color: m.jumlah_mk_diulang > 0 ? 'text-red-700' : 'text-green-700' },
               { label: 'Efisiensi', value: `${efisiensi.toFixed(0)}%`, color: efisiensi >= 90 ? 'text-green-700' : efisiensi >= 75 ? 'text-blue-700' : 'text-red-700' },
               { label: 'Masa Studi', value: `${tahunStudi} Thn`, color: tahunStudi > 5 ? 'text-red-700' : 'text-gray-900' },
